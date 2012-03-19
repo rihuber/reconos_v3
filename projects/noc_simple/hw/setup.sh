@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE_DESIGN="ml605_linux_13.3"
+BASE_DESIGN="ml605_linux_13.3_sysace"
 HWTS="hwt_sort_demo_v1_00_b\
       hwt_sort_demo_v1_00_b\
       hwt_sort_demo_v1_00_b\
