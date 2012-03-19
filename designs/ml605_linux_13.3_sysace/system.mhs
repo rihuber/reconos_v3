@@ -53,7 +53,13 @@
  PORT fpga_0_PCIe_Diff_Clk_IBUF_DS_P_pin = fpga_0_PCIe_Diff_Clk_IBUF_DS_P_pin, DIR = I
  PORT fpga_0_PCIe_Diff_Clk_IBUF_DS_N_pin = fpga_0_PCIe_Diff_Clk_IBUF_DS_N_pin, DIR = I
  PORT fsl_ila_0_FSL_S_Read_pin = FSL_S_Read, DIR = I
-
+ PORT xps_sysace_0_SysACE_MPA_pin = xps_sysace_0_SysACE_MPA, DIR = O, VEC = [6:0]
+ PORT xps_sysace_0_SysACE_MPIRQ_pin = xps_sysace_0_SysACE_MPIRQ, DIR = I
+ PORT xps_sysace_0_SysACE_OEN_pin = xps_sysace_0_SysACE_OEN, DIR = O
+ PORT xps_sysace_0_SysACE_CEN_pin = xps_sysace_0_SysACE_CEN, DIR = O
+ PORT xps_sysace_0_SysACE_MPD = xps_sysace_0_SysACE_MPD, DIR = IO, VEC = [7:0]
+ PORT xps_sysace_0_SysACE_WEN_pin = xps_sysace_0_SysACE_WEN, DIR = O
+ PORT xps_sysace_0_SysACE_CLK_pin = xps_sysace_0_SysACE_CLK, DIR = I
 
 BEGIN microblaze
  PARAMETER INSTANCE = microblaze_0
@@ -275,7 +281,7 @@ BEGIN xps_intc
  PARAMETER C_HIGHADDR = 0x8180ffff
  PARAMETER C_NUM_INTR_INPUTS = 4
  BUS_INTERFACE SPLB = mb_plb
- PORT Intr = fpga_0_Ethernet_MAC_MDINT_pin & xps_timer_0_Interrupt & RS232_Uart_1_Interrupt & Ethernet_MAC_IP2INTC_Irpt
+ PORT Intr = fpga_0_Ethernet_MAC_MDINT_pin & xps_timer_0_Interrupt & RS232_Uart_1_Interrupt & Ethernet_MAC_IP2INTC_Irpt & xps_sysace_0_SysACE_IRQ
  PORT Irq = microblaze_0_Interrupt
 END
 
@@ -286,5 +292,22 @@ BEGIN xps_timer
  PARAMETER C_HIGHADDR = 0x850000FF
  BUS_INTERFACE SPLB = mb_plb
  PORT Interrupt = xps_timer_0_Interrupt
+END
+
+BEGIN xps_sysace
+ PARAMETER INSTANCE = xps_sysace_0
+ PARAMETER HW_VER = 1.01.a
+ PARAMETER C_BASEADDR = 0x85010000
+ PARAMETER C_HIGHADDR = 0x8501FFFF
+ PARAMETER C_MEM_WIDTH = 8
+ BUS_INTERFACE SPLB = mb_plb
+ PORT SysACE_IRQ = xps_sysace_0_SysACE_IRQ
+ PORT SysACE_MPA = xps_sysace_0_SysACE_MPA
+ PORT SysACE_MPIRQ = xps_sysace_0_SysACE_MPIRQ
+ PORT SysACE_OEN = xps_sysace_0_SysACE_OEN
+ PORT SysACE_CEN = xps_sysace_0_SysACE_CEN
+ PORT SysACE_MPD = xps_sysace_0_SysACE_MPD
+ PORT SysACE_WEN = xps_sysace_0_SysACE_WEN
+ PORT SysACE_CLK = xps_sysace_0_SysACE_CLK
 END
 
