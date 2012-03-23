@@ -1,7 +1,8 @@
 #!/bin/bash
 
 BASE_DESIGN="ml605_linux_13.3"
-HWTS="hwt_functional_block_v1_00_b"
+HWTS="hwt_functional_block_v1_00_b\
+      hwt_functional_block_v1_00_b"
 
 
 if [ -z "$RECONOS" ]
