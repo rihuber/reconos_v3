@@ -1,0 +1,4 @@
+lib noc_switch_v1_00_a switch/utilPkg.vhd vhdl
+lib noc_switch_v1_00_a switch/header/headerPkg.vhd vhdl
+lib noc_switch_v1_00_a switch/switchPkg.vhd vhdl
+lib noc_switch_v1_00_a noc_switch.vhd vhdl
