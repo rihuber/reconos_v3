@@ -17,6 +17,8 @@ BUS_INTERFACE BUS=OS_SFSL, BUS_STD=FSL, BUS_TYPE=SLAVE
 BUS_INTERFACE BUS=OS_MFSL, BUS_STD=FSL, BUS_TYPE=MASTER
 BUS_INTERFACE BUS=SFIFO32, BUS_STD=SFIFO32_STD, BUS_TYPE=TARGET
 BUS_INTERFACE BUS=MFIFO32, BUS_STD=MFIFO32_STD, BUS_TYPE=TARGET
+BUS_INTERFACE BUS=downstream, BUS_STD=noc_switch_downstream, BUS_TYPE=TARGET
+BUS_INTERFACE BUS=upstream, BUS_STD=noc_switch_upstream, BUS_TYPE=TARGET
 
 ## Peripheral ports
 PORT OSFSL_Clk = "", DIR=I, SIGIS=Clk, BUS=OS_MFSL:OS_SFSL
@@ -42,6 +44,13 @@ PORT FIFO32_M_Data = FIFO32_M_Data, DIR=O, VEC=[0:31], BUS=MFIFO32
 PORT FIFO32_M_Wr   = FIFO32_M_Wr,   DIR=O,             BUS=MFIFO32
 PORT FIFO32_M_Rem  = FIFO32_M_Rem,  DIR=I, VEC=[0:15], BUS=MFIFO32
 
+PORT downstreamReadEnable = downstreamReadEnable, DIR = O, BUS = downstream
+PORT downstreamEmpty = downstreamEmpty, DIR = I, BUS = downstream
+PORT downstreamData = downstreamData, DIR = I, BUS = downstream, VEC=[0:8]
+
+PORT upstreamWriteEnable = upstreamWriteEnable, DIR = O, BUS = upstream
+PORT upstreamData = upstreamData, DIR = O, BUS = upstream, VEC=[0:8]
+PORT upstreamFull = upstreamFull, DIR = I, BUS = upstream
 
 PORT Rst="", DIR=I, SIGIS=Rst
 

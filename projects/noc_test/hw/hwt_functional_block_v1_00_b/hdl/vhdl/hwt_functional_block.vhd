@@ -34,6 +34,14 @@ entity hwt_functional_block is
 		FIFO32_M_Rem : in std_logic_vector(15 downto 0);
 		FIFO32_S_Rd : out std_logic;
 		FIFO32_M_Wr : out std_logic;
+
+		-- NoC interface
+		downstreamReadEnable	: out std_logic;
+		downstreamEmpty  	: in std_logic;
+		downstreamData		: in std_logic_vector(8 downto 0);
+		upstreamWriteEnable	: out std_logic;
+		upstreamData		: out std_logic_vector(8 downto 0);
+		upstreamFull 		: in std_logic
 		
 		-- HWT reset
 		rst           : in std_logic
