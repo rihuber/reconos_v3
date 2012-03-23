@@ -286,6 +286,8 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE OS_MFSL = fsl_v20_0a
 	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
 	BUS_INTERFACE MFIFO32 = fifo32_0a_mfifo32
+	BUS_INTERFACE downstream = noc_switch_0_downstream0
+ 	BUS_INTERFACE upstream = noc_switch_0_upstream0
 	PORT Rst = proc_control_0_reset0
 END
 
@@ -296,6 +298,8 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE OS_MFSL = fsl_v20_1a
 	BUS_INTERFACE SFIFO32 = fifo32_1b_sfifo32
 	BUS_INTERFACE MFIFO32 = fifo32_1a_mfifo32
+	BUS_INTERFACE downstream = noc_switch_0_downstream1
+ 	BUS_INTERFACE upstream = noc_switch_0_upstream1
 	PORT Rst = proc_control_0_reset1
 END
 
