@@ -50,39 +50,37 @@ entity hwt_functional_block is
 end hwt_functional_block;
 
 architecture implementation of hwt_functional_block is
-	type STATE_TYPE is ( STATE_GET, STATE_PUT, STATE_THREAD_EXIT );
-
-	-- PUT YOUR OWN COMPONENTS HERE
-
-    -- END OF YOUR OWN COMPONENTS
 	
-
-    -- ADD YOUR CONSTANTS, TYPES AND SIGNALS BELOW
+	type STATE_TYPE is ( STATE_WAIT_FOR_DATA,
+			     STATE_WAIT_FOR_REPLY,
+			     STATE_RETURN_DATA,
+			     STATE_THREAD_EXIT );
 
 	constant MBOX_RECV  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
 
 	signal data     : std_logic_vector(31 downto 0);
+	signal replied_data : std_logic_vector(31 downto 0);
 	signal state    : STATE_TYPE;
 	signal i_osif   : i_osif_t;
 	signal o_osif   : o_osif_t;
 	signal i_memif  : i_memif_t;
 	signal o_memif  : o_memif_t;
-	signal i_ram    : i_ram_t;
-	signal o_ram    : o_ram_t;
-
+	
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
 
-	signal sort_start : std_logic := '0';
-	signal sort_done  : std_logic := '0';
+	signal send_data : std_logic;
+	signal data_sent : std_logic;
+	signal received_reply : std_logic;
+
+	signal upstreamData_n : std_logic_vector(8 downto 0);
+	signal upstreamWriteEnable_n : std_logic;
+	signal received_reply_n : std_logic;
+	signal replied_data_n : std_logic_vector(31 downto 0);
+
 begin
 	
-
-    -- PUT YOUR OWN INSTANCES HERE
-
-    -- END OF YOUR OWN INSTANCES
-
-	fsl_setup(
+  	fsl_setup(
 		i_osif,
 		o_osif,
 		OSFSL_Clk,
@@ -110,47 +108,41 @@ begin
 		FIFO32_M_Wr
 	);
 	
-    -- PUT YOUR OWN PROCESSES HERE
-	
-	-- END OF YOUR OWN PROCESSES
-
-
-    -- ADJUST THE RECONOS_FSM TO YOUR NEEDS.		
+    
 	-- os and memory synchronisation state machine
-	reconos_fsm: process (i_osif.clk,rst,o_osif,o_memif,o_ram) is
+	reconos_fsm: process (i_osif.clk,rst,o_osif,o_memif) is
 		variable done  : boolean;
 	begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
 			state <= STATE_GET;
-
-
-            -- RESET YOUR OWN SIGNALS HERE
-
+			send_data <= '0';
 		elsif rising_edge(i_osif.clk) then
+			send_data <= '0';
 			case state is
-
-                -- EXAMPLE STATE MACHINE - ADD YOUR STATES AS NEEDED
-
-				-- Get some data
-				when STATE_GET =>
+				when STATE_WAIT_FOR_DATA =>
 					osif_mbox_get(i_osif, o_osif, MBOX_RECV, data, done);
 					if done then
 						if (data = X"FFFFFFFF") then
 							state <= STATE_THREAD_EXIT;
 						else
-							state <= STATE_PUT;
+							send_data <= '1';
+							state <= STATE_WAIT_FOR_REPLY;
 						end if;
 					end if;
-				
-				
-				-- Echo the data
-				when STATE_PUT =>
-					osif_mbox_put(i_osif, o_osif, MBOX_SEND, data, ignore, done);
-					if done then state <= STATE_GET; end if;
 
-				-- thread exit
+				when STATE_WAIT_FOR_REPLY =>
+					if received_reply = '1' then
+						state <= STATE_RETURN_DATA;
+					end if;
+								
+				when STATE_RETURN_DATA =>
+					osif_mbox_put(i_osif, o_osif, MBOX_SEND, replied_data, ignore, done);
+					if done then 
+						state <= STATE_WAIT_FOR_DATA; 
+					end if;
+
 				when STATE_THREAD_EXIT =>
 					osif_thread_exit(i_osif,o_osif);
 			
@@ -158,4 +150,43 @@ begin
 		end if;
 	end process;
 	
+	nomem_fifo : process(send_data, downstreamEmpty, state)
+	begin
+		upstreamData_n <= (others => '1');
+		upstreamWriteEnable_n <= '0';
+		received_reply_n <= '0';
+		replied_data_n <= replied_data;
+		if send_data = '1' then
+			upstreamData_n <= data(8 downto 0);
+			upstreamWriteEnable_n <= '1';
+		elsif downstreamEmpty = '0' then
+			if state /= STATE_WAIT_FOR_REPLY then
+				upstreamData_n <= downstreamData;
+				upstreamWriteEnable_n <= '1';
+			else
+				replied_data_n(8 downto 0) <= downstreamData;
+				received_reply_n <= '1';
+			end if;
+		end if;
+	end process;
+
+	mem_fifo : process(i_osif.clk,rst)
+	begin
+		if rst = '1' then 
+			upstreamData <= (others => '1');
+			upstreamWriteEnable <= '0';
+			received_reply <= '0';
+			replied_data <= (others => '0');
+		elsif rising_edge(i_osif.clk) then
+			upstreamData <= upstreamData_n;
+			upstreamWriteEnable_n <= upstreamWriteEnable_n;
+			received_reply <= received_reply_n;
+			replied_data <= replied_data_n;
+		end if;received_reply_n <= '1';
+	end process;
+
+	
 end architecture;
+
+
+
