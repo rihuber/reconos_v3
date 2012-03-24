@@ -41,7 +41,7 @@ entity hwt_functional_block is
 		downstreamData		: in std_logic_vector(8 downto 0);
 		upstreamWriteEnable	: out std_logic;
 		upstreamData		: out std_logic_vector(8 downto 0);
-		upstreamFull 		: in std_logic
+		upstreamFull 		: in std_logic;
 		
 		-- HWT reset
 		rst           : in std_logic
@@ -60,9 +60,9 @@ architecture implementation of hwt_functional_block is
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
 
 	signal data     : std_logic_vector(31 downto 0);
-	signal replied_data : std_logic_vector(31 downto 0);
+	signal replied_data : std_logic_vector(31 downto 0);
 	signal state    : STATE_TYPE;
-	signal i_osif   : i_osif_t;
+	signal i_osif	: i_osif_t;
 	signal o_osif   : o_osif_t;
 	signal i_memif  : i_memif_t;
 	signal o_memif  : o_memif_t;
@@ -70,13 +70,13 @@ architecture implementation of hwt_functional_block is
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
 
 	signal send_data : std_logic;
-	signal data_sent : std_logic;
-	signal received_reply : std_logic;
+	signal data_sent : std_logic;
+	signal received_reply : std_logic;
 
-	signal upstreamData_n : std_logic_vector(8 downto 0);
+	signal upstreamData_n : std_logic_vector(8 downto 0);
 	signal upstreamWriteEnable_n : std_logic;
-	signal received_reply_n : std_logic;
-	signal replied_data_n : std_logic_vector(31 downto 0);
+	signal received_reply_n : std_logic;
+	signal replied_data_n : std_logic_vector(31 downto 0);
 
 begin
 	
@@ -116,7 +116,7 @@ begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
-			state <= STATE_GET;
+			state <= STATE_WAIT_FOR_DATA;
 			send_data <= '0';
 		elsif rising_edge(i_osif.clk) then
 			send_data <= '0';
@@ -127,13 +127,13 @@ begin
 						if (data = X"FFFFFFFF") then
 							state <= STATE_THREAD_EXIT;
 						else
-							send_data <= '1';
+							send_data <= '1';
 							state <= STATE_WAIT_FOR_REPLY;
 						end if;
 					end if;
 
 				when STATE_WAIT_FOR_REPLY =>
-					if received_reply = '1' then
+					if received_reply = '1' then
 						state <= STATE_RETURN_DATA;
 					end if;
 								
@@ -150,13 +150,13 @@ begin
 		end if;
 	end process;
 	
-	nomem_fifo : process(send_data, downstreamEmpty, state)
+	nomem_fifo : process(send_data, downstreamEmpty, state)
 	begin
 		upstreamData_n <= (others => '1');
-		upstreamWriteEnable_n <= '0';
-		received_reply_n <= '0';
+		upstreamWriteEnable_n <= '0';
+		received_reply_n <= '0';
 		replied_data_n <= replied_data;
-		if send_data = '1' then
+		if send_data = '1' then
 			upstreamData_n <= data(8 downto 0);
 			upstreamWriteEnable_n <= '1';
 		elsif downstreamEmpty = '0' then
@@ -165,12 +165,12 @@ begin
 				upstreamWriteEnable_n <= '1';
 			else
 				replied_data_n(8 downto 0) <= downstreamData;
-				received_reply_n <= '1';
+				received_reply_n <= '1';
 			end if;
 		end if;
 	end process;
 
-	mem_fifo : process(i_osif.clk,rst)
+	mem_fifo : process(i_osif.clk,rst)
 	begin
 		if rst = '1' then 
 			upstreamData <= (others => '1');
@@ -182,7 +182,7 @@ begin
 			upstreamWriteEnable_n <= upstreamWriteEnable_n;
 			received_reply <= received_reply_n;
 			replied_data <= replied_data_n;
-		end if;received_reply_n <= '1';
+		end if;
 	end process;
 
 	
