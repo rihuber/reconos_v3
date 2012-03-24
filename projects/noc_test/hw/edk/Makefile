@@ -2,6 +2,7 @@ all: bits
 
 bits:
 	echo "run bits\nexit" | xps -nw system.xmp
+	echo -e '\a'
 
 clean:
 	echo "run clean\nexit" | xps -nw system.xmp
