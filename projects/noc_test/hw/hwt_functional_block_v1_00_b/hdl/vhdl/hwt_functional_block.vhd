@@ -51,16 +51,20 @@ end hwt_functional_block;
 
 architecture implementation of hwt_functional_block is
 	
-	type STATE_TYPE is ( STATE_WAIT_FOR_DATA,
-			     STATE_WAIT_FOR_REPLY,
-			     STATE_RETURN_DATA,
-			     STATE_THREAD_EXIT );
+	type STATE_TYPE is ( STATE_GET,
+			     		 STATE_SEND_PACKETS,
+			     		 STATE_WAIT_FOR_PACKET,
+			     		 STATE_PUT,
+			     		 STATE_THREAD_EXIT );
+			     
+	type RECEIVE_STATE_TYPE is ( STATE_WAIT_FOR_FIFO,
+								 STATE_DELIVER_PACKET,
+								 STATE_IDLE );
 
 	constant MBOX_RECV  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
 
-	signal data     : std_logic_vector(31 downto 0);
-	signal replied_data : std_logic_vector(31 downto 0);
+	signal command     : std_logic_vector(31 downto 0);
 	signal state    : STATE_TYPE;
 	signal i_osif	: i_osif_t;
 	signal o_osif   : o_osif_t;
@@ -69,14 +73,20 @@ architecture implementation of hwt_functional_block is
 	
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
 
-	signal send_data : std_logic;
-	signal data_sent : std_logic;
-	signal received_reply : std_logic;
-
+	signal sendPackets : std_logic;
+	signal receivePacket : std_logic;
+	signal receivePacket_done : std_logic;
+	signal receivePacket_done_n : std_logic;
+	signal counter : std_logic_vector(31 downto 0);
+	signal counter_n : std_logic_vector(31 downto 0);
+	
+	signal receiveState : RECEIVE_STATE_TYPE;
+	signal receiveState_n : RECEIVE_STATE_TYPE;
+	signal receivedCounter : std_logic_vector(31 downto 0);
+	signal receivedCounter_n : std_logic_vector(31 downto 0);
+	
 	signal upstreamData_n : std_logic_vector(8 downto 0);
 	signal upstreamWriteEnable_n : std_logic;
-	signal received_reply_n : std_logic;
-	signal replied_data_n : std_logic_vector(31 downto 0);
 
 begin
 	
@@ -116,31 +126,38 @@ begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
-			state <= STATE_WAIT_FOR_DATA;
-			send_data <= '0';
+			state <= STATE_GET;
+			sendPackets <= '0';
+			receivePacket <= '0';
 		elsif rising_edge(i_osif.clk) then
-			send_data <= '0';
+			sendPackets <= '0';
+			receivePacket <= '0';
 			case state is
-				when STATE_WAIT_FOR_DATA =>
-					osif_mbox_get(i_osif, o_osif, MBOX_RECV, data, done);
+				when STATE_GET =>
+					osif_mbox_get(i_osif, o_osif, MBOX_RECV, command, done);
 					if done then
-						if (data = X"FFFFFFFF") then
+						if command = X"FFFFFFFF" then
 							state <= STATE_THREAD_EXIT;
+						elsif command = X"00000001" then
+							state <= STATE_SEND_PACKETS;
 						else
-							send_data <= '1';
-							state <= STATE_WAIT_FOR_REPLY;
+							state <= STATE_WAIT_FOR_PACKET;
 						end if;
 					end if;
 
-				when STATE_WAIT_FOR_REPLY =>
-					if received_reply = '1' then
-						state <= STATE_RETURN_DATA;
-					end if;
+				when STATE_SEND_PACKETS =>
+					sendPackets <= '1';
 								
-				when STATE_RETURN_DATA =>
-					osif_mbox_put(i_osif, o_osif, MBOX_SEND, replied_data, ignore, done);
+				when STATE_WAIT_FOR_PACKET =>
+					receivePacket <= '1';
+					if receivePacket_done = '1' then
+						state <= STATE_PUT;
+					end if;
+				
+				when STATE_PUT =>
+					osif_mbox_put(i_osif, o_osif, MBOX_SEND, receivedCounter, ignore, done);
 					if done then 
-						state <= STATE_WAIT_FOR_DATA; 
+						state <= STATE_WAIT_FOR_PACKET; 
 					end if;
 
 				when STATE_THREAD_EXIT =>
@@ -150,43 +167,78 @@ begin
 		end if;
 	end process;
 	
-	nomem_fifo : process(send_data, downstreamEmpty, state)
-	begin
-		upstreamData_n <= (others => '1');
-		upstreamWriteEnable_n <= '0';
-		received_reply_n <= '0';
-		replied_data_n <= replied_data;
-		if send_data = '1' then
-			upstreamData_n <= data(8 downto 0);
-			upstreamWriteEnable_n <= '1';
-		elsif downstreamEmpty = '0' then
-			if state /= STATE_WAIT_FOR_REPLY then
-				upstreamData_n <= downstreamData;
-				upstreamWriteEnable_n <= '1';
-			else
-				replied_data_n(8 downto 0) <= downstreamData;
-				received_reply_n <= '1';
-			end if;
-		end if;
-	end process;
-
-	mem_fifo : process(i_osif.clk,rst)
+	
+	
+	mem_sending : process(i_osif.clk,rst)
 	begin
 		if rst = '1' then 
-			upstreamData <= (others => '1');
+			counter <= (others => '0');
+			upstreamData <= (others => '0');
 			upstreamWriteEnable <= '0';
-			received_reply <= '0';
-			replied_data <= (others => '0');
 		elsif rising_edge(i_osif.clk) then
 			upstreamData <= upstreamData_n;
-			upstreamWriteEnable_n <= upstreamWriteEnable_n;
-			received_reply <= received_reply_n;
-			replied_data <= replied_data_n;
+			upstreamWriteEnable <= upstreamWriteEnable_n;
+			counter <= counter_n;
 		end if;
+	end process;
+	
+	nomem_sendign : process(counter, sendPackets, upstreamFull) 
+	begin
+		upstreamData_n <= counter(8 downto 0);
+		upstreamWriteEnable_n <= '0';
+		counter_n <= counter;
+		if sendPackets = '1' and upstreamFull = '0' then
+			upstreamWriteEnable_n <= '1';
+			counter_n <= counter + 1;
+		end if;
+	end process;
+	
+	
+	
+	mem_receiving : process(i_osif.clk,rst)
+	begin
+		if rst = '1' then 
+			receiveState <= STATE_IDLE;
+			receivePacket_done <= '0';
+			receivedCounter	<= (others =>'0');
+		elsif rising_edge(i_osif.clk) then
+			receiveState <= receiveState_n;
+			receivePacket_done <= receivePacket_done_n;
+			receivedCounter <= receivedCounter_n;
+		end if;
+	end process;
+	
+	nomem_receiving : process(receivedCounter, receiveState, receivePacket, downstreamEmpty, downstreamData)
+	begin
+		receivedCounter_n <= receivedCounter;
+		receiveState_n <= receiveState;
+		downstreamReadEnable <= '0';
+		receivePacket_done_n <= '0';
+		case receiveState is
+			when STATE_IDLE =>
+				if receivePacket = '1' then
+					receiveState_n <= STATE_WAIT_FOR_FIFO;				
+				end if;
+			
+			when STATE_WAIT_FOR_FIFO =>
+				if downstreamEmpty = '0' then
+					receivedCounter_n(8 downto 0) <= downstreamData;
+					downstreamReadEnable <= '1';
+					receiveState_n <= STATE_DELIVER_PACKET;
+				end if;
+			
+			when STATE_DELIVER_PACKET =>
+				receivePacket_done_n <= '1';
+				if receivePacket = '0' then
+					receiveState_n <= STATE_IDLE;
+				end if;
+			
+		end case;
 	end process;
 
 	
 end architecture;
+
 
 
 
