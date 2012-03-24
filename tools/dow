@@ -62,5 +62,13 @@ if [ $? -eq 0 ]; then
 	exit 0
 fi
 
+echo $1 | grep -e "\.xilinx" > /dev/null
+if [ $? -eq 0 ]; then
+	echo "it's an xilinx Linux kernel!"
+	$DOW_ELF $1
+	echo
+	exit 0
+fi
+
 echo "Not an executable or bitfile!"
 
