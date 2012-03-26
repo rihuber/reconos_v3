@@ -77,7 +77,7 @@ int main(int argc, char ** argv)
 	int slice_size;
 
 	// we have exactly 3 arguments now...
-	hw_threads = 2;
+	hw_threads = 1;
 	sw_threads = 0;
 
 	// Base unit is bytes. Use macros TO_WORDS, TO_PAGES and TO_BLOCKS for conversion.
@@ -108,25 +108,16 @@ int main(int argc, char ** argv)
 	}
 	printf("\n");
 
-	printf("Sending mbox message 1");
-	fflush(stdout);
-	mbox_put(&mb_start,1);
-	printf("\n");
-
-	printf("Sending mbox message 2");
-	fflush(stdout);
-	mbox_put(&mb_start,2);
-	printf("\n");
-
-	// Wait for results
-	printf("Wait for answer");
-	fflush(stdout);
-	while(1)
+	for(i=10; i>=0; i--)
 	{
+		printf("Sending mbox message %d\n", i);
+		fflush(stdout);
+		mbox_put(&mb_start,i);
+
+		printf("Waiting for answer\n");
+		fflush(stdout);
 		ret = mbox_get(&mb_stop);
-		printf("\n");
-		printf("Received answer is %#x", ret);
-		printf("\n");
+		printf("Received answer is %d\n", ret);
 	}
 
 	// terminate all threads

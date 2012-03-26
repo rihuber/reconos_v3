@@ -6,6 +6,7 @@
 
 lib proc_common_v3_00_a  proc_common_pkg vhdl
 lib reconos_v3_00_a reconos_pkg vhdl
+lib hwt_functional_block_v1_00_b interSwitchFifo vhdl
 lib hwt_functional_block_v1_00_b hwt_functional_block vhdl
 
 

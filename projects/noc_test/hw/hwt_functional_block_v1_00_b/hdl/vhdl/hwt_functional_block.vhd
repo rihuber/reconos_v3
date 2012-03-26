@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
-use ieee.std_logic_arith.all;
-use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all;
 
 library proc_common_v3_00_a;
 use proc_common_v3_00_a.proc_common_pkg.all;
@@ -52,8 +51,8 @@ end hwt_functional_block;
 architecture implementation of hwt_functional_block is
 	
 	type STATE_TYPE is ( STATE_GET,
-			     		 STATE_SEND_PACKETS,
-			     		 STATE_WAIT_FOR_PACKET,
+			     		 STATE_WRITE_DATA,
+			     		 STATE_READ_DATA,
 			     		 STATE_PUT,
 			     		 STATE_THREAD_EXIT );
 			     
@@ -64,31 +63,48 @@ architecture implementation of hwt_functional_block is
 	constant MBOX_RECV  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
 
-	signal command     : std_logic_vector(31 downto 0);
+	signal data     : std_logic_vector(31 downto 0);
+	signal data_ret : std_logic_vector(31 downto 0);
 	signal state    : STATE_TYPE;
 	signal i_osif	: i_osif_t;
 	signal o_osif   : o_osif_t;
 	signal i_memif  : i_memif_t;
-	signal o_memif  : o_memif_t;
-	
+	signal o_memif  : o_memif_t;	
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
-
-	signal sendPackets : std_logic;
-	signal receivePacket : std_logic;
-	signal receivePacket_done : std_logic;
-	signal receivePacket_done_n : std_logic;
-	signal counter : std_logic_vector(31 downto 0);
-	signal counter_n : std_logic_vector(31 downto 0);
 	
-	signal receiveState : RECEIVE_STATE_TYPE;
-	signal receiveState_n : RECEIVE_STATE_TYPE;
-	signal receivedCounter : std_logic_vector(31 downto 0);
-	signal receivedCounter_n : std_logic_vector(31 downto 0);
+	signal fifo_full : std_logic;
+	signal fifo_wr_en : std_logic;
+	signal fifo_din : std_logic_vector(8 downto 0);
+	signal fifo_empty : std_logic;
+	signal fifo_dout : std_logic_vector(8 downto 0);
+	signal fifo_rd_en : std_logic;
 	
-	signal upstreamData_n : std_logic_vector(8 downto 0);
-	signal upstreamWriteEnable_n : std_logic;
+	component interSwitchFifo
+		port (
+		clk: IN std_logic;
+		rst: IN std_logic;
+		din: IN std_logic_VECTOR(8 downto 0);
+		wr_en: IN std_logic;
+		rd_en: IN std_logic;
+		dout: OUT std_logic_VECTOR(8 downto 0);
+		full: OUT std_logic;
+		empty: OUT std_logic
+	);
+	end component;
 
 begin
+
+	fifo : interSwitchFifo
+		port map (
+			clk => i_osif.clk,
+			rst => rst,
+			din => fifo_din,
+			wr_en => fifo_wr_en,
+			rd_en => fifo_rd_en,
+			dout => fifo_dout,
+			full => fifo_full,
+			empty => fifo_empty
+		);
 	
   	fsl_setup(
 		i_osif,
@@ -127,37 +143,41 @@ begin
 			osif_reset(o_osif);
 			memif_reset(o_memif);
 			state <= STATE_GET;
-			sendPackets <= '0';
-			receivePacket <= '0';
+			fifo_wr_en <= '0';
+			fifo_rd_en <= '0';
+			data_ret <= (others => '0');
 		elsif rising_edge(i_osif.clk) then
-			sendPackets <= '0';
-			receivePacket <= '0';
+			fifo_wr_en <= '0';
+			fifo_rd_en <= '0';
 			case state is
 				when STATE_GET =>
-					osif_mbox_get(i_osif, o_osif, MBOX_RECV, command, done);
+					osif_mbox_get(i_osif, o_osif, MBOX_RECV, data, done);
 					if done then
-						if command = X"FFFFFFFF" then
+						if data = X"FFFFFFFF" then
 							state <= STATE_THREAD_EXIT;
-						elsif command = X"00000001" then
-							state <= STATE_SEND_PACKETS;
 						else
-							state <= STATE_WAIT_FOR_PACKET;
+							state <= STATE_WRITE_DATA;
 						end if;
 					end if;
 
-				when STATE_SEND_PACKETS =>
-					sendPackets <= '1';
-								
-				when STATE_WAIT_FOR_PACKET =>
-					receivePacket <= '1';
-					if receivePacket_done = '1' then
+				when STATE_WRITE_DATA =>
+					if fifo_full = '0' then
+						fifo_wr_en <= '1';
+						fifo_din <= data(8 downto 0);
+						state <= STATE_READ_DATA;
+					end if;
+					
+				when STATE_READ_DATA =>
+					if fifo_empty = '0' then
+						fifo_rd_en <= '1';
+						data_ret(8 downto 0) <= fifo_dout;
 						state <= STATE_PUT;
 					end if;
 				
 				when STATE_PUT =>
-					osif_mbox_put(i_osif, o_osif, MBOX_SEND, receivedCounter, ignore, done);
+					osif_mbox_put(i_osif, o_osif, MBOX_SEND, data_ret, ignore, done);
 					if done then 
-						state <= STATE_WAIT_FOR_PACKET; 
+						state <= STATE_GET; 
 					end if;
 
 				when STATE_THREAD_EXIT =>
@@ -165,75 +185,6 @@ begin
 			
 			end case;
 		end if;
-	end process;
-	
-	
-	
-	mem_sending : process(i_osif.clk,rst)
-	begin
-		if rst = '1' then 
-			counter <= (others => '0');
-			upstreamData <= (others => '0');
-			upstreamWriteEnable <= '0';
-		elsif rising_edge(i_osif.clk) then
-			upstreamData <= upstreamData_n;
-			upstreamWriteEnable <= upstreamWriteEnable_n;
-			counter <= counter_n;
-		end if;
-	end process;
-	
-	nomem_sendign : process(counter, sendPackets, upstreamFull) 
-	begin
-		upstreamData_n <= counter(8 downto 0);
-		upstreamWriteEnable_n <= '0';
-		counter_n <= counter;
-		if sendPackets = '1' and upstreamFull = '0' then
-			upstreamWriteEnable_n <= '1';
-			counter_n <= counter + 1;
-		end if;
-	end process;
-	
-	
-	
-	mem_receiving : process(i_osif.clk,rst)
-	begin
-		if rst = '1' then 
-			receiveState <= STATE_IDLE;
-			receivePacket_done <= '0';
-			receivedCounter	<= (others =>'0');
-		elsif rising_edge(i_osif.clk) then
-			receiveState <= receiveState_n;
-			receivePacket_done <= receivePacket_done_n;
-			receivedCounter <= receivedCounter_n;
-		end if;
-	end process;
-	
-	nomem_receiving : process(receivedCounter, receiveState, receivePacket, downstreamEmpty, downstreamData)
-	begin
-		receivedCounter_n <= receivedCounter;
-		receiveState_n <= receiveState;
-		downstreamReadEnable <= '0';
-		receivePacket_done_n <= '0';
-		case receiveState is
-			when STATE_IDLE =>
-				if receivePacket = '1' then
-					receiveState_n <= STATE_WAIT_FOR_FIFO;				
-				end if;
-			
-			when STATE_WAIT_FOR_FIFO =>
-				if downstreamEmpty = '0' then
-					receivedCounter_n(8 downto 0) <= downstreamData;
-					downstreamReadEnable <= '1';
-					receiveState_n <= STATE_DELIVER_PACKET;
-				end if;
-			
-			when STATE_DELIVER_PACKET =>
-				receivePacket_done_n <= '1';
-				if receivePacket = '0' then
-					receiveState_n <= STATE_IDLE;
-				end if;
-			
-		end case;
 	end process;
 
 	
