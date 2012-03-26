@@ -12,96 +12,142 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
+#include "config.h"
 
+#define PAGE_SIZE 4096
+#define PAGE_WORDS 1024
+#define PAGE_MASK 0xFFFFF000
+#define PAGES_PER_THREAD 2
 
-#define HWT_SLOT_NR 0
+#define BLOCK_SIZE PAGE_SIZE*PAGES_PER_THREAD
 
-// software thread
-pthread_t swt;
-pthread_attr_t swt_attr;
+#define MAX_BURST_SIZE 1023
+#define MAX_THREADS 32
+
+#define TO_WORDS(x) ((x)/4)
+#define TO_PAGES(x) ((x)/PAGE_SIZE)
+#define TO_BLOCKS(x) ((x)/(PAGE_SIZE*PAGES_PER_THREAD))
 
 // hardware threads
 struct reconos_resource res[2];
-struct reconos_hwt hwt;
+struct reconos_hwt hwt[2];
+
 
 // mailboxes
-struct mbox mb_put;
-struct mbox mb_get;
+struct mbox mb_start;
+struct mbox mb_stop;
 
-// sort thread shall behave the same as hw thread:
-// - get pointer to data buffer
-// - if valid address: sort data and post answer
-// - if exit command: issue thread exit os call
-void *echo_thread(void* data)
+unsigned int* malloc_page_aligned(unsigned int pages)
 {
-    unsigned int word;
-    struct reconos_resource *res  = (struct reconos_resource*) data;
-    struct mbox *mb_put = res[0].ptr;
-    struct mbox *mb_get  = res[1].ptr;
-
-    while ( 1 ) {
-        word = mbox_get(mb_put);
-	    if (word == UINT_MAX)
-	    {
-	      pthread_exit((void*)0);
-	    }
-	    else
-	    {
-	        mbox_put(mb_get, word);  
-	    }
-    }
-
-    return (void*)0;
+	unsigned int * temp = malloc ((pages+1)*PAGE_SIZE);
+	unsigned int * data = (unsigned int*)(((unsigned int)temp / PAGE_SIZE + 1) * PAGE_SIZE);
+	return data;
 }
 
-/*
- * Starts one sw-thread and one hw-thread, and puts two words into the 'put' mailbox.
- * Then it waits for the answers in the 'get' mailbox
- */
+// size is given in words, not bytes!
+void print_data(unsigned int* data, unsigned int size)
+{
+	int i;
+	for (i=0; i<size; i++)
+	{
+		printf("(%04d) %04d \t", i, data[i]);
+		if ((i+1)%4 == 0) printf("\n");
+	}
+	printf("\n");
+}
+
+void print_mmu_stats()
+{
+	uint32 hits,misses,pgfaults;
+
+	reconos_mmu_stats(&hits,&misses,&pgfaults);
+
+	printf("MMU stats: TLB hits: %d    TLB misses: %d    page faults: %d\n",hits,misses,pgfaults);
+}
+
+
 int main(int argc, char ** argv)
 {
+	int i;
+	int ret;
+	int hw_threads;
+	int sw_threads;
+	int running_threads;
+	int buffer_size;
+	int slice_size;
+
+	// we have exactly 3 arguments now...
+	hw_threads = 2;
+	sw_threads = 0;
+
+	// Base unit is bytes. Use macros TO_WORDS, TO_PAGES and TO_BLOCKS for conversion.
+	buffer_size = PAGE_SIZE*PAGES_PER_THREAD;
+	slice_size  = PAGE_SIZE*PAGES_PER_THREAD;
+
+	running_threads = hw_threads + sw_threads;
+
 	// init mailboxes
-	mbox_init(&mb_put, 2);
-    mbox_init(&mb_get, 2);
+	mbox_init(&mb_start,20);
+        mbox_init(&mb_stop ,20);
 
 	// init reconos and communication resources
-	reconos_init(14,15);
+	reconos_init_autodetect();
 
-	printf("Creating hw-thread.\n");
 	res[0].type = RECONOS_TYPE_MBOX;
-	res[0].ptr  = &mb_put;	  	
-    res[1].type = RECONOS_TYPE_MBOX;
-	res[1].ptr  = &mb_get;
+	res[0].ptr  = &mb_start;	  	
+        res[1].type = RECONOS_TYPE_MBOX;
+	res[1].ptr  = &mb_stop;
 
-    reconos_hwt_setresources(&hwt,res,2);
-	reconos_hwt_create(&hwt,HWT_SLOT_NR,NULL);
+	printf("Creating %i hw-threads: ", hw_threads);
+	fflush(stdout);
+	for (i = 0; i < hw_threads; i++)
+	{
+	  printf(" %i",i);fflush(stdout);
+	  reconos_hwt_setresources(&(hwt[i]),res,2);
+	  reconos_hwt_create(&(hwt[i]),i,NULL);
+	}
+	printf("\n");
 
-	// init software threads
-	printf("Creating sw-thread.\n");
-    pthread_attr_init(&swt_attr);
-	pthread_create(&swt, &swt_attr, echo_thread, (void*)res);
+	printf("Sending mbox message 1");
+	fflush(stdout);
+	mbox_put(&mb_start,1);
+	printf("\n");
 
-
-	// Put some data into the mailbox
-	printf("Putting 0xDEADBEEF into mailbox twice...\n");
-    mbox_put(&mb_put,(unsigned int)0xDEADBEEF);
-    mbox_put(&mb_put,(unsigned int)0xDEADBEEF);
+	printf("Sending mbox message 2");
+	fflush(stdout);
+	mbox_put(&mb_start,2);
+	printf("\n");
 
 	// Wait for results
-	printf("Reading data from mailbox...\n");
-    printf("First  word is: %x n", mbox_get(&mb_get));
-    printf("Second word is: %x n", mbox_get(&mb_get));
-
+	printf("Wait for answer");
+	fflush(stdout);
+	while(1)
+	{
+		ret = mbox_get(&mb_stop);
+		printf("\n");
+		printf("Received answer is %#x", ret);
+		printf("\n");
+	}
 
 	// terminate all threads
-	printf("Sending terminate message to sw and hw thread.\n");
-    mbox_put(&mb_put,UINT_MAX);
-    mbox_put(&mb_put,UINT_MAX);
-
+	printf("Sending terminate message to %i threads:", running_threads);
+	fflush(stdout);
+	for (i=0; i<running_threads; i++)
+	{
+	  printf(" %i",i);fflush(stdout);
+	  mbox_put(&mb_start,UINT_MAX);
+	}
+	printf("\n");
 
 	printf("Waiting for termination...\n");
-    pthread_join(hwt.delegate,NULL);
-	pthread_join(swt,NULL);
+	for (i=0; i<hw_threads; i++)
+	{
+	  pthread_join(hwt[i].delegate,NULL);
+	}
+	
+
+	printf("done!\n");
+	
 	
 	return 0;
 }
