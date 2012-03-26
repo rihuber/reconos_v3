@@ -507,6 +507,5 @@ BEGIN noc_switch
  BUS_INTERFACE downstream1 = noc_switch_0_downstream1
  BUS_INTERFACE upstream0 = noc_switch_0_upstream0
  BUS_INTERFACE upstream1 = noc_switch_0_upstream1
- PORT clk125 = clk_100_0000MHzMMCM0
  PORT reset = proc_control_0_reset0
 END

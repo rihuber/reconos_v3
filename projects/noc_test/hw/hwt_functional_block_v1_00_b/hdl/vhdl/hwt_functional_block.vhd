@@ -38,9 +38,11 @@ entity hwt_functional_block is
 		downstreamReadEnable	: out std_logic;
 		downstreamEmpty  	: in std_logic;
 		downstreamData		: in std_logic_vector(8 downto 0);
+		downstreamReadClock	: out std_logic;
 		upstreamWriteEnable	: out std_logic;
 		upstreamData		: out std_logic_vector(8 downto 0);
 		upstreamFull 		: in std_logic;
+		upstreamWriteClock : out std_logic;
 		
 		-- HWT reset
 		rst           : in std_logic
@@ -72,40 +74,8 @@ architecture implementation of hwt_functional_block is
 	signal o_memif  : o_memif_t;	
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
 	
-	signal fifo_full : std_logic;
-	signal fifo_wr_en : std_logic;
-	signal fifo_din : std_logic_vector(8 downto 0);
-	signal fifo_empty : std_logic;
-	signal fifo_dout : std_logic_vector(8 downto 0);
-	signal fifo_rd_en : std_logic;
-	
-	component interSwitchFifo
-		port (
-		clk: IN std_logic;
-		rst: IN std_logic;
-		din: IN std_logic_VECTOR(8 downto 0);
-		wr_en: IN std_logic;
-		rd_en: IN std_logic;
-		dout: OUT std_logic_VECTOR(8 downto 0);
-		full: OUT std_logic;
-		empty: OUT std_logic
-	);
-	end component;
-
 begin
 
-	fifo : interSwitchFifo
-		port map (
-			clk => i_osif.clk,
-			rst => rst,
-			din => fifo_din,
-			wr_en => fifo_wr_en,
-			rd_en => fifo_rd_en,
-			dout => fifo_dout,
-			full => fifo_full,
-			empty => fifo_empty
-		);
-	
   	fsl_setup(
 		i_osif,
 		o_osif,
@@ -134,6 +104,8 @@ begin
 		FIFO32_M_Wr
 	);
 	
+	downstreamReadClock <= i_osif.clk;
+	upstreamWriteClock <= i_osif.clk;
     
 	-- os and memory synchronisation state machine
 	reconos_fsm: process (i_osif.clk,rst,o_osif,o_memif) is
@@ -143,12 +115,12 @@ begin
 			osif_reset(o_osif);
 			memif_reset(o_memif);
 			state <= STATE_GET;
-			fifo_wr_en <= '0';
-			fifo_rd_en <= '0';
+			upstreamWriteEnable <= '0';
+			downstreamReadEnable <= '0';
 			data_ret <= (others => '0');
 		elsif rising_edge(i_osif.clk) then
-			fifo_wr_en <= '0';
-			fifo_rd_en <= '0';
+			upstreamWriteEnable <= '0';
+			downstreamReadEnable <= '0';
 			case state is
 				when STATE_GET =>
 					osif_mbox_get(i_osif, o_osif, MBOX_RECV, data, done);
@@ -161,16 +133,16 @@ begin
 					end if;
 
 				when STATE_WRITE_DATA =>
-					if fifo_full = '0' then
-						fifo_wr_en <= '1';
-						fifo_din <= data(8 downto 0);
+					if upstreamFull = '0' then
+						upstreamWriteEnable <= '1';
+						upstreamData <= data(8 downto 0);
 						state <= STATE_READ_DATA;
 					end if;
 					
 				when STATE_READ_DATA =>
-					if fifo_empty = '0' then
-						fifo_rd_en <= '1';
-						data_ret(8 downto 0) <= fifo_dout;
+					if downstreamEmpty = '0' then
+						downstreamReadEnable <= '1';
+						data_ret(8 downto 0) <= downstreamData;
 						state <= STATE_PUT;
 					end if;
 				

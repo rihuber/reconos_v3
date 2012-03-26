@@ -11,24 +11,27 @@ entity noc_switch is
 		globalAddr : integer := 0
 	);
   	port (
-		clk125		: in std_logic;
 		reset		: in std_logic;
 
 		downstream0ReadEnable	: in std_logic;
 		downstream0Empty  	: out std_logic;
 		downstream0Data		: out std_logic_vector(dataWidth downto 0);
+		downstream0ReadClock : in std_logic;
 
 		downstream1ReadEnable	: in std_logic;
 		downstream1Empty  	: out std_logic;
 		downstream1Data		: out std_logic_vector(dataWidth downto 0);
+		downstream1ReadClock : in std_logic;
 
 		upstream0WriteEnable	: in std_logic;
 		upstream0Data		: in std_logic_vector(dataWidth downto 0);
 		upstream0Full 		: out std_logic;
+		upstream0WriteClock : in std_logic;
 
 		upstream1WriteEnable	: in std_logic;
 		upstream1Data		: in std_logic_vector(dataWidth downto 0);
-		upstream1Full 		: out std_logic
+		upstream1Full 		: out std_logic;
+		upstream1WriteClock : in std_logic
   	);
 end noc_switch;
 
@@ -51,28 +54,28 @@ architecture rtl of noc_switch is
 	
 begin
 
-	up0_down1 : interSwitchFifo
+	fifo0 : interSwitchFifo
 		port map (
-			clk => clk125,
+			clk => downstream0ReadClock,
 			rst => reset,
 			din => upstream0Data,
 			wr_en => upstream0WriteEnable,
-			rd_en => downstream1ReadEnable,
-			dout => downstream1Data,
+			rd_en => downstream0ReadEnable,
+			dout => downstream0Data,
 			full => upstream0Full,
-			empty => downstream1Empty
+			empty => downstream0Empty
 		);
 
-	up1_down0 : interSwitchFifo
+	fifo1 : interSwitchFifo
 		port map (
-			clk => clk125,
+			clk => downstream1ReadClock,
 			rst => reset,
 			din => upstream1Data,
 			wr_en => upstream1WriteEnable,
-			rd_en => downstream0ReadEnable,
-			dout => downstream0Data,
+			rd_en => downstream1ReadEnable,
+			dout => downstream1Data,
 			full => upstream1Full,
-			empty => downstream0Empty
+			empty => downstream1Empty
 		);
 	
 end architecture rtl;
