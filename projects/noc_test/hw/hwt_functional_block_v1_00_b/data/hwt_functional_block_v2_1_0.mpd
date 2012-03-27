@@ -48,12 +48,12 @@ PORT FIFO32_M_Rem  = FIFO32_M_Rem,  DIR=I, VEC=[0:15], BUS=MFIFO32
 PORT downstreamReadEnable = downstreamReadEnable, DIR = O, BUS = downstream
 PORT downstreamEmpty = downstreamEmpty, DIR = I, BUS = downstream
 PORT downstreamData = downstreamData, DIR = I, BUS = downstream, VEC=[0:8]
-PORT downstreamReadClock = downstreamReadClock, DIR = O, BUS = downstream
+PORT downstreamReadClock = downstreamReadClock, DIR=O, SIGIS=Clk, BUS = downstream
 
 PORT upstreamWriteEnable = upstreamWriteEnable, DIR = O, BUS = upstream
 PORT upstreamData = upstreamData, DIR = O, BUS = upstream, VEC=[0:8]
 PORT upstreamFull = upstreamFull, DIR = I, BUS = upstream
-PORT upstreamWriteClock = upstreamWriteClock, DIR = O, BUS = upstream
+PORT upstreamWriteClock = upstreamWriteClock, DIR=O, SIGIS=Clk, BUS = upstream
 
 PORT Rst="", DIR=I, SIGIS=Rst
 
