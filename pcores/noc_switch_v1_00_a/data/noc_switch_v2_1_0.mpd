@@ -22,23 +22,23 @@ PARAMETER gobalAddr=0, ASSIGNMENT=REQUIRE, DESC="The global address of the switc
 ## Ports
 PORT reset=reset, DIR=I, SIGIS=RST
 
-PORT downstreamReadEnable=downstream0ReadEnable, DIR=I, BUS=downstream0
-PORT downstreamEmpty=downstream0Empty, DIR=O, BUS=downstream0
-PORT downstreamData=downstream0Data, DIR=O, BUS=downstream0, VEC=[0:8]
-PORT downstreamReadClock=downstream0ReadClock, SIGIS=Clk, DIR=I, BUS=downstream0
+PORT downstream0ReadEnable=downstreamReadEnable, DIR=I, BUS=downstream0
+PORT downstream0Empty=downstreamEmpty, DIR=O, BUS=downstream0
+PORT downstream0Data=downstreamData, DIR=O, BUS=downstream0, VEC=[0:8]
+PORT downstream0ReadClock=downstreamReadClock, SIGIS=Clk, DIR=I, BUS=downstream0
 
-PORT downstreamReadEnable=downstream1ReadEnable, DIR=I, BUS=downstream1
-PORT downstreamEmpty=downstream1Empty, DIR=O, BUS=downstream1
-PORT downstreamData=downstream1Data, DIR=O, BUS=downstream1, VEC=[0:8]
-PORT downstreamReadClock=downstream1ReadClock, SIGIS=Clk, DIR=I, BUS=downstream1
+PORT downstream1ReadEnable=downstreamReadEnable, DIR=I, BUS=downstream1
+PORT downstream1Empty=downstreamEmpty, DIR=O, BUS=downstream1
+PORT downstream1Data=downstreamData, DIR=O, BUS=downstream1, VEC=[0:8]
+PORT downstream1ReadClock=downstreamReadClock, SIGIS=Clk, DIR=I, BUS=downstream1
 
-PORT upstreamWriteEnable=upstream0WriteEnable, DIR=I, BUS=upstream0
-PORT upstreamData=upstream0Data, DIR=I, BUS=upstream0, VEC=[0:8]
-PORT upstreamFull=upstream0Full, DIR=O, BUS=upstream0
-PORT upstreamWriteClock=upstream0WriteClock, SIGIS=Clk, DIR=I, BUS=upstream0
+PORT upstream0WriteEnable=upstreamWriteEnable, DIR=I, BUS=upstream0
+PORT upstream0Data=upstreamData, DIR=I, BUS=upstream0, VEC=[0:8]
+PORT upstream0Full=upstreamFull, DIR=O, BUS=upstream0
+PORT upstream0WriteClock=upstreamWriteClock, SIGIS=Clk, DIR=I, BUS=upstream0
 
-PORT upstreamWriteEnable=upstream1WriteEnable, DIR=I, BUS=upstream1
-PORT upstreamData=upstream1Data, DIR=I, BUS=upstream1, VEC=[0:8]
-PORT upstreamFull=upstream1Full, DIR=O, BUS=upstream1
-PORT upstreamWriteClock=upstream1WriteClock, SIGIS=Clk, DIR=I, BUS=upstream1
+PORT upstream1WriteEnable=upstreamWriteEnable, DIR=I, BUS=upstream1
+PORT upstream1Data=upstreamData, DIR=I, BUS=upstream1, VEC=[0:8]
+PORT upstream1Full=upstreamFull, DIR=O, BUS=upstream1
+PORT upstream1WriteClock=upstreamWriteClock, SIGIS=Clk, DIR=I, BUS=upstream1
 END
