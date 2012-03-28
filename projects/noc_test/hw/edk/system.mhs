@@ -303,6 +303,30 @@ BEGIN hwt_functional_block
 	PORT Rst = proc_control_0_reset1
 END
 
+BEGIN hwt_functional_block
+	PARAMETER INSTANCE = hwt_functional_block_0
+	PARAMETER HW_VER = v1.00.b
+	BUS_INTERFACE OS_SFSL = fsl_v20_0b
+	BUS_INTERFACE OS_MFSL = fsl_v20_0a
+	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
+	BUS_INTERFACE MFIFO32 = fifo32_0a_mfifo32
+	BUS_INTERFACE downstream = noc_switch_1_downstream0
+ 	BUS_INTERFACE upstream = noc_switch_1_upstream0
+	PORT Rst = proc_control_0_reset0
+END
+
+BEGIN hwt_functional_block
+	PARAMETER INSTANCE = hwt_functional_block_1
+	PARAMETER HW_VER = v1.00.b
+	BUS_INTERFACE OS_SFSL = fsl_v20_1b
+	BUS_INTERFACE OS_MFSL = fsl_v20_1a
+	BUS_INTERFACE SFIFO32 = fifo32_1b_sfifo32
+	BUS_INTERFACE MFIFO32 = fifo32_1a_mfifo32
+	BUS_INTERFACE downstream = noc_switch_1_downstream1
+ 	BUS_INTERFACE upstream = noc_switch_1_upstream1
+	PORT Rst = proc_control_0_reset1
+END
+
 BEGIN fsl_v20
 	PARAMETER INSTANCE = fsl_v20_0a
 	PARAMETER HW_VER = 2.11.e
@@ -508,4 +532,17 @@ BEGIN noc_switch
  BUS_INTERFACE upstream0 = noc_switch_0_upstream0
  BUS_INTERFACE upstream1 = noc_switch_0_upstream1
  PORT reset = proc_control_0_reset0
+ PORT clk125 = clk_100_0000MHzMMCM0
+END
+
+BEGIN noc_switch
+ PARAMETER INSTANCE = noc_switch_0
+ PARAMETER HW_VER = 1.00.a
+ PARAMETER gobalAddr = 1
+ BUS_INTERFACE downstream0 = noc_switch_1_downstream0
+ BUS_INTERFACE downstream1 = noc_switch_1_downstream1
+ BUS_INTERFACE upstream0 = noc_switch_1_upstream0
+ BUS_INTERFACE upstream1 = noc_switch_1_upstream1
+ PORT reset = proc_control_0_reset0
+ PORT clk125 = clk_100_0000MHzMMCM0
 END
