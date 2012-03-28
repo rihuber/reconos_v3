@@ -336,3 +336,15 @@ INST "*/u_phy_rdclk_gen/gen_ck_cpt[3].u_oserdes_cpt"
 INST "*/u_phy_rdclk_gen/gen_ck_cpt[3].u_odelay_cpt"
   LOC = "IODELAY_X1Y137";
 
+
+
+
+Net led0 LOC=AP24 | IOSTANDARD=LVCMOS15;
+Net led1 LOC=AD21 | IOSTANDARD=LVCMOS15;
+Net led2 LOC=AH28 | IOSTANDARD=LVCMOS15;
+Net led3 LOC=AE21 | IOSTANDARD=LVCMOS15;
+
+Net button0 LOC = G26 | IOSTANDARD=LVCMOS15;
+Net button1 LOC = H17 | IOSTANDARD=LVCMOS15;
+Net button2 LOC = A18 | IOSTANDARD=LVCMOS15;
+Net button3 LOC = G17 | IOSTANDARD=LVCMOS15;

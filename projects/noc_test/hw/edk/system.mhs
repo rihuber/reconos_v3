@@ -38,6 +38,16 @@ PORT fpga_0_PCIe_Diff_Clk_IBUF_DS_P_pin = fpga_0_PCIe_Diff_Clk_IBUF_DS_P_pin, DI
 PORT fpga_0_PCIe_Diff_Clk_IBUF_DS_N_pin = fpga_0_PCIe_Diff_Clk_IBUF_DS_N_pin, DIR = I
 PORT fsl_ila_0_FSL_S_Read_pin = FSL_S_Read, DIR = I
 
+PORT led0 = led0, DIR=O
+PORT led1 = led1, DIR=O
+PORT led2 = led2, DIR=O
+PORT led3 = led3, DIR=O
+
+PORT button0 = button0, DIR=I
+PORT button1 = button1, DIR=I
+PORT button2 = button2, DIR=I
+PORT button3 = button3, DIR=I
+
 BEGIN microblaze
 	PARAMETER INSTANCE = microblaze_0
 	PARAMETER C_USE_BARREL = 1
@@ -282,6 +292,8 @@ END
 BEGIN hwt_functional_block
 	PARAMETER INSTANCE = hwt_functional_block_0
 	PARAMETER HW_VER = v1.00.b
+	PARAMETER resetWithToken = 1
+	PARAMETER headerValue = 00000001
 	BUS_INTERFACE OS_SFSL = fsl_v20_0b
 	BUS_INTERFACE OS_MFSL = fsl_v20_0a
 	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
@@ -289,11 +301,15 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_0_downstream0
  	BUS_INTERFACE upstream = noc_switch_0_upstream0
 	PORT Rst = proc_control_0_reset0
+	PORT led = led0
+	PORT button = button0
 END
 
 BEGIN hwt_functional_block
 	PARAMETER INSTANCE = hwt_functional_block_1
 	PARAMETER HW_VER = v1.00.b
+	PARAMETER resetWithToken = 0
+	PARAMETER headerValue = 00000010
 	BUS_INTERFACE OS_SFSL = fsl_v20_1b
 	BUS_INTERFACE OS_MFSL = fsl_v20_1a
 	BUS_INTERFACE SFIFO32 = fifo32_1b_sfifo32
@@ -301,11 +317,15 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_0_downstream1
  	BUS_INTERFACE upstream = noc_switch_0_upstream1
 	PORT Rst = proc_control_0_reset1
+	PORT led = led1
+	PORT button = button1
 END
 
 BEGIN hwt_functional_block
 	PARAMETER INSTANCE = hwt_functional_block_0
 	PARAMETER HW_VER = v1.00.b
+	PARAMETER resetWithToken = 0
+	PARAMETER headerValue = 00000011
 	BUS_INTERFACE OS_SFSL = fsl_v20_0b
 	BUS_INTERFACE OS_MFSL = fsl_v20_0a
 	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
@@ -313,11 +333,15 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_1_downstream0
  	BUS_INTERFACE upstream = noc_switch_1_upstream0
 	PORT Rst = proc_control_0_reset0
+	PORT led = led2
+	PORT button = button2
 END
 
 BEGIN hwt_functional_block
 	PARAMETER INSTANCE = hwt_functional_block_1
 	PARAMETER HW_VER = v1.00.b
+	PARAMETER resetWithToken = 0
+	PARAMETER headerValue = 00000000
 	BUS_INTERFACE OS_SFSL = fsl_v20_1b
 	BUS_INTERFACE OS_MFSL = fsl_v20_1a
 	BUS_INTERFACE SFIFO32 = fifo32_1b_sfifo32
@@ -325,6 +349,8 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_1_downstream1
  	BUS_INTERFACE upstream = noc_switch_1_upstream1
 	PORT Rst = proc_control_0_reset1
+	PORT led = led3
+	PORT button = button3
 END
 
 BEGIN fsl_v20
