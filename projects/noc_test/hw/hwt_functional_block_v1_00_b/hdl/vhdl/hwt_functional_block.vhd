@@ -51,8 +51,7 @@ entity hwt_functional_block is
 		-- HWT reset
 		rst           : in std_logic;
 		
-		led 		: out std_logic;
-		button		: in std_logic		
+		led 		: out std_logic
 	);
 
 end hwt_functional_block;
@@ -61,10 +60,12 @@ architecture implementation of hwt_functional_block is
 	
 	type STATE_TYPE is ( STATE_IDLE,
 						 STATE_REPORT_TOKEN_RECEPTION,
+						 STATE_WAIT_FOR_COMMAND,
 						 STATE_REPORT_COMMAND_RECEPTION,
 						 STATE_THREAD_EXIT );
 
-	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
+	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
+	constant MBOX_RECEIVE  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant C_REPORT_TOKEN_RECEPTION : std_logic_vector(31 downto 0) := x"00000000";
 	constant C_REPORT_COMMAND_RECEPTION : std_logic_vector(31 downto 0) := x"00000001"; 
 
@@ -79,8 +80,8 @@ architecture implementation of hwt_functional_block is
 	
 	constant counterWidth : integer := 10;
 	
-	type state is (IDLE, RECEIVING_TOKEN, HOLDING_TOKEN, SENDING_TOKEN);
-	signal state_p, state_n : state;
+	type token_state is (IDLE, RECEIVING_TOKEN, HOLDING_TOKEN, SENDING_TOKEN);
+	signal state_p, state_n : token_state;
 	signal counter_p, counter_n	: unsigned(counterWidth-1 downto 0);
 	
 	constant counterMaxValue : unsigned(counterWidth-1 downto 0) := (others => '1');
@@ -88,6 +89,7 @@ architecture implementation of hwt_functional_block is
 	
 	signal dataValue_p, dataValue_n : std_logic_vector(7 downto 0);
 	signal reportTokenReception, reportCommandReception : std_logic;
+	signal button : std_logic;
 	
 begin
 
@@ -129,18 +131,31 @@ begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
+			if resetWithToken = '1' then
+				state <= STATE_WAIT_FOR_COMMAND;
+			else
+				state <= STATE_IDLE;
+			end if;
 		elsif rising_edge(i_osif.clk) then
+			button <= '0';
 			case state is
 				when STATE_IDLE =>
-					if reportTokenReception then
+					if reportTokenReception = '1' then
 						state <= STATE_REPORT_TOKEN_RECEPTION;
-					elsif reportCommandReception then
+					elsif reportCommandReception = '1' then
 						state <= STATE_REPORT_COMMAND_RECEPTION;
 					end if;
 					
 				when STATE_REPORT_TOKEN_RECEPTION =>
 					osif_mbox_put(i_osif, o_osif, MBOX_SEND, C_REPORT_TOKEN_RECEPTION, ignore, done);
 					if done then 
+						state <= STATE_WAIT_FOR_COMMAND;
+					end if;
+					
+				when STATE_WAIT_FOR_COMMAND =>
+					osif_mbox_get(i_osif, o_osif, MBOX_RECEIVE, ignore, done);
+					if done then
+						button <= '1';
 						state <= STATE_IDLE;
 					end if;
 					
@@ -224,17 +239,17 @@ begin
 		end case;
 	end process nomem_nextState;
 
-	mem_stateTransition : process (rst, clk)
+	mem_stateTransition : process (rst, i_osif.clk)
 	begin
 		if rst = '0' then
 			counter_p <= (others => '1');
 			dataValue_p <= "01010101";
-			if resetWithToken then
+			if resetWithToken = '1' then
 				state_p <= HOLDING_TOKEN;
 			else
 				state_p <= IDLE;
 			end if;
-		elsif rising_edge(clk) then
+		elsif rising_edge(i_osif.clk) then
 			state_p <= state_n;
 			counter_p <= counter_n;
 			dataValue_p <= dataValue_n;

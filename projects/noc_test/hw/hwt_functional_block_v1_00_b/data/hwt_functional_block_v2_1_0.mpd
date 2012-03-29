@@ -12,8 +12,8 @@ OPTION IMP_NETLIST = TRUE
 OPTION HDL = VHDL
 OPTION STYLE = MIX
 
-PARAMETER resetWithToken, ASSIGNMENT=REQUIRE, DT=std_logic, PERMIT=BASE_USER, TYPE=HDL
-PARAMETER headerValue, ASSIGNMENT=REQUIRE, DT=std_logic_vector, PERMIT=BASE_USER, TYPE=HDL
+PARAMETER resetWithToken=0b0, ASSIGNMENT=REQUIRE, DT=std_logic, PERMIT=BASE_USER, TYPE=HDL
+PARAMETER headerValue=0b00000000, ASSIGNMENT=REQUIRE, DT=std_logic_vector, PERMIT=BASE_USER, TYPE=HDL
 
 ## Bus Interfaces
 BUS_INTERFACE BUS=OS_SFSL, BUS_STD=FSL, BUS_TYPE=SLAVE
@@ -58,8 +58,7 @@ PORT upstreamFull=upstreamFull, DIR=I, BUS=upstream
 PORT upstreamWriteClock=upstreamWriteClock, DIR=O, SIGIS=Clk, BUS=upstream
 
 PORT Rst="", DIR=I, SIGIS=Rst
+PORT led="", DIR=O
 
-PORT led="", DIR=O
-PORT button="", DIR=I
 
 END

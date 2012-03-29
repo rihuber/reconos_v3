@@ -34,8 +34,8 @@ struct reconos_hwt hwt[2];
 
 
 // mailboxes
-struct mbox mb_start;
-struct mbox mb_stop;
+struct mbox mb_report;
+struct mbox mb_command;
 
 unsigned int* malloc_page_aligned(unsigned int pages)
 {
@@ -77,7 +77,7 @@ int main(int argc, char ** argv)
 	int slice_size;
 
 	// we have exactly 3 arguments now...
-	hw_threads = 1;
+	hw_threads = 4;
 	sw_threads = 0;
 
 	// Base unit is bytes. Use macros TO_WORDS, TO_PAGES and TO_BLOCKS for conversion.
@@ -87,16 +87,16 @@ int main(int argc, char ** argv)
 	running_threads = hw_threads + sw_threads;
 
 	// init mailboxes
-	mbox_init(&mb_start,20);
-        mbox_init(&mb_stop ,20);
+	mbox_init(&mb_command ,20);
+	mbox_init(&mb_report,20);
 
 	// init reconos and communication resources
 	reconos_init_autodetect();
 
 	res[0].type = RECONOS_TYPE_MBOX;
-	res[0].ptr  = &mb_start;	  	
-        res[1].type = RECONOS_TYPE_MBOX;
-	res[1].ptr  = &mb_stop;
+	res[0].ptr  = &mb_report;
+    res[1].type = RECONOS_TYPE_MBOX;
+	res[1].ptr  = &mb_command;
 
 	printf("Creating %i hw-threads: ", hw_threads);
 	fflush(stdout);
@@ -108,16 +108,15 @@ int main(int argc, char ** argv)
 	}
 	printf("\n");
 
-	for(i=10; i>=0; i--)
+	while(1)
 	{
-		printf("Sending mbox message %d\n", i);
+		printf("Sending Token");
 		fflush(stdout);
-		mbox_put(&mb_start,i);
-
-		printf("Waiting for answer\n");
+		mbox_put(&mb_command, 0);
+		mbox_get(&mb_report);
+		printf("Received Token");
 		fflush(stdout);
-		ret = mbox_get(&mb_stop);
-		printf("Received answer is %d\n", ret);
+		sleep(1);
 	}
 
 	// terminate all threads
@@ -126,7 +125,7 @@ int main(int argc, char ** argv)
 	for (i=0; i<running_threads; i++)
 	{
 	  printf(" %i",i);fflush(stdout);
-	  mbox_put(&mb_start,UINT_MAX);
+	  mbox_put(&mb_report,UINT_MAX);
 	}
 	printf("\n");
 
