@@ -61,7 +61,6 @@ architecture implementation of hwt_functional_block is
 	type STATE_TYPE is ( STATE_IDLE,
 						 STATE_REPORT_TOKEN_RECEPTION,
 						 STATE_WAIT_FOR_COMMAND,
-						 STATE_REPORT_COMMAND_RECEPTION,
 						 STATE_THREAD_EXIT );
 
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
@@ -131,20 +130,11 @@ begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
-			if resetWithToken = '1' then
-				state <= STATE_WAIT_FOR_COMMAND;
-			else
-				state <= STATE_IDLE;
-			end if;
+			state <= STATE_IDLE;
 		elsif rising_edge(i_osif.clk) then
-			button <= '0';
 			case state is
 				when STATE_IDLE =>
-					if reportTokenReception = '1' then
-						state <= STATE_REPORT_TOKEN_RECEPTION;
-					elsif reportCommandReception = '1' then
-						state <= STATE_REPORT_COMMAND_RECEPTION;
-					end if;
+					state <= STATE_REPORT_TOKEN_RECEPTION;
 					
 				when STATE_REPORT_TOKEN_RECEPTION =>
 					osif_mbox_put(i_osif, o_osif, MBOX_SEND, C_REPORT_TOKEN_RECEPTION, ignore, done);
@@ -155,14 +145,7 @@ begin
 				when STATE_WAIT_FOR_COMMAND =>
 					osif_mbox_get(i_osif, o_osif, MBOX_RECEIVE, ignore, done);
 					if done then
-						button <= '1';
-						state <= STATE_IDLE;
-					end if;
-					
-				when STATE_REPORT_COMMAND_RECEPTION =>
-					osif_mbox_put(i_osif, o_osif, MBOX_SEND, C_REPORT_COMMAND_RECEPTION, ignore, done);
-					if done then 
-						state <= STATE_IDLE;
+						state <= STATE_REPORT_TOKEN_RECEPTION;
 					end if;
 					
 				when STATE_THREAD_EXIT =>
