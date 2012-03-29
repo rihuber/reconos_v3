@@ -58,7 +58,7 @@ end hwt_functional_block;
 
 architecture implementation of hwt_functional_block is
 	
-	type STATE_TYPE is ( STATE_REPORT_TOKEN_RECEPTION, STATE_WAIT_FOR_COMMAND);s
+	type STATE_TYPE is ( STATE_REPORT_TOKEN_RECEPTION, STATE_WAIT_FOR_COMMAND);
 
 	constant MBOX_RECV  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
