@@ -8,7 +8,7 @@ use noc_switch_v1_00_a.headerPkg.all;
 
 entity noc_switch is
 	generic (
-		globalAddr : integer
+		globalAddr : std_logic_vector(4 downto 0) := (others => '0')
 	);
   	port (
   		clk125					: in  std_logic;
@@ -34,11 +34,19 @@ entity noc_switch is
 		upstream1Full 			: out std_logic;
 		upstream1WriteClock 	: in  std_logic;
 		
-		ringInputIn				: in  inputLinkInArray(numExtPorts-1 downto 0);
-		ringInputOut			: out inputLinkOutArray(numExtPorts-1 downto 0);
+		ringInputEmpty			: in std_logic_vector(numExtPorts-1 downto 0);
+		ringInputData			: in std_logic_vector((numExtPorts*(dataWidth+1))-1 downto 0);
+		ringInputReadEnable		: out std_logic_vector(numExtPorts-1 downto 0);
+		
+		ringOutputReadEnable	: in std_logic_vector(numExtPorts-1 downto 0);
+		ringOutputData			: out std_logic_vector((numExtPorts*(dataWidth+1))-1 downto 0);
+		ringOutputEmpty			: out std_logic_vector(numExtPorts-1 downto 0)
+		
+--		ringInputIn				: in  inputLinkInArray(numExtPorts-1 downto 0);
+--		ringInputOut			: out inputLinkOutArray(numExtPorts-1 downto 0);
 
-		ringOutputIn			: in  inputLinkOutArray(numExtPorts-1 downto 0);
-		ringOutputOut			: out inputLinkInArray(numExtPorts-1 downto 0)
+		--ringOutputIn			: in  inputLinkOutArray(numExtPorts-1 downto 0);
+		--ringOutputOut			: out inputLinkInArray(numExtPorts-1 downto 0)
   	);
 end noc_switch;
 
@@ -68,27 +76,30 @@ architecture rtl of noc_switch is
 	);
 	end component;
 	
-	component interSwitchFifo
-		port (
-		rst: IN std_logic;
-		clk: IN std_logic;
-		din: IN std_logic_VECTOR(8 downto 0);
-		wr_en: IN std_logic;
-		rd_en: IN std_logic;
-		dout: OUT std_logic_VECTOR(8 downto 0);
-		full: OUT std_logic;
-		empty: OUT std_logic
-	);
-	end component;
+	COMPONENT interSwitchFifo
+	  PORT (
+	    clk : IN STD_LOGIC;
+	    rst : IN STD_LOGIC;
+	    din : IN STD_LOGIC_VECTOR(8 DOWNTO 0);
+	    wr_en : IN STD_LOGIC;
+	    rd_en : IN STD_LOGIC;
+	    dout : OUT STD_LOGIC_VECTOR(8 DOWNTO 0);
+	    full : OUT STD_LOGIC;
+	    empty : OUT STD_LOGIC
+	  );
+END COMPONENT;
 	
 begin
 
 	-----------------------------------------------------------------
-	-- UPSTREAM FROM FUNCTIONAL BLOCK
+	-- INPUT FROM RING
 	-----------------------------------------------------------------
 	
-	swInputLinksIn(numPorts-1 downto numIntPorts) <= ringInputIn;
-	ringInputOut <= swInputLinksOut(numPorts-1 downto numIntPorts);
+	ring_input_generate : for i in numPorts-1 downto numIntPorts generate
+		swInputLinksIn(i).empty <= ringInputEmpty(i-numIntPorts);
+		swInputLinksIn(i).data <= ringInputData((i-numIntPorts+1)*(dataWidth+1)-1 downto (i-numIntPorts)*(dataWidth+1));
+		ringInputReadEnable(i-numIntPorts) <= swInputLinksOut(i).readEnable;
+	end generate;
 
 	
 	-----------------------------------------------------------------
@@ -145,9 +156,10 @@ begin
 	-----------------------------------------------------------------
 	
 	generate_output_buffer_fifo: for i in numIntPorts to numPorts-1 generate	
-		outputBufferFifo : interSwitchFifo
+		outputBufferFifo : fbSwitchFifo
 			port map (
-				clk => clk125,
+				rd_clk => clk125,
+				wr_clk => clk125,
 				rst => reset,
 				din => swOutputLinksOut(i).data,
 				wr_en => swOutputLinksOut(i).writeEnable,
@@ -189,9 +201,11 @@ begin
 	-- OUTPUT TO RING
 	-----------------------------------------------------------------
 	
-	ringOutputOut(numExtPorts-1 downto 0) <= outputBufferOut(numPorts-1 downto numIntPorts);
-	outputBufferIn(numPorts-1 downto numIntPorts) <= ringOutputIn;
-	
+	ring_out_generate : for i in numPorts-1 downto numIntPorts generate
+		ringOutputEmpty(i-numIntPorts) <= outputBufferOut(i).empty;
+		ringOutputData((i-numIntPorts+1)*(dataWidth+1)-1 downto (i-numIntPorts)*(dataWidth+1)) <= outputBufferOut(i).data;
+		outputBufferIn(i).readEnable <= ringOutputReadEnable(i-numIntPorts);
+	end generate;
 	
 	-----------------------------------------------------------------
 	-- DOWNSTREAM TO FUNCTIONAL BLOCK

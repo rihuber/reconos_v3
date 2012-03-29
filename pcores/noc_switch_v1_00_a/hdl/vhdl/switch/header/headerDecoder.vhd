@@ -2,7 +2,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use work.headerPkg.all;
+library noc_switch_v1_00_a;
+use noc_switch_v1_00_a.headerPkg.all;
 
 entity headerDecoder is
 		port (

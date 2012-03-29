@@ -1,7 +1,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-use work.switchPkg.all;
+library noc_switch_v1_00_a;
+use noc_switch_v1_00_a.switchPkg.all;
 
 entity rxPort is
 	port (

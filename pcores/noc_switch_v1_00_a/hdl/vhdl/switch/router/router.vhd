@@ -1,8 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-use work.headerPkg.all;
-use work.switchPkg.all;
+library noc_switch_v1_00_a;
+use noc_switch_v1_00_a.headerPkg.all;
+use noc_switch_v1_00_a.switchPkg.all;
 
 entity router is
 	generic(
@@ -54,7 +55,7 @@ begin
 
 	headerFetchGenerate : for i in numPorts-1 downto 0 generate
 		
-		headerFetchEntity: entity work.headerFetch
+		headerFetchEntity: entity noc_switch_v1_00_a.headerFetch
 			port map (
 				clk 			=> clk,
 				reset 			=> reset,
@@ -66,7 +67,7 @@ begin
 		
 	end generate headerFetchGenerate;
 	
-	headerSelectEntity: entity work.headerSelect
+	headerSelectEntity: entity noc_switch_v1_00_a.headerSelect
 		port map (
 			headerIn		=> headerFetch_headerOut,
 			selected		=> headerFetch_selected,
@@ -75,7 +76,7 @@ begin
 			selectedAddr	=> headerSelect_selectedAddr
 		);
 		
-	txFifoSelectEntity: entity work.txFifoSelect
+	txFifoSelectEntity: entity noc_switch_v1_00_a.txFifoSelect
 		generic map (
 			globalAddress	=> globalAddress
 		)
@@ -87,7 +88,7 @@ begin
 	
 	intTxFifoGenerate: for i in numIntPorts-1 downto 0 generate
 		
-		intTxFifoEntity: entity work.txFifo
+		intTxFifoEntity: entity noc_switch_v1_00_a.txFifo
 			port map (
 				clk 		=> clk,
 				reset 		=> reset,
@@ -100,7 +101,7 @@ begin
 		
 	end generate intTxFifoGenerate;
 	
-	extTxFifoEntity: entity work.txFifo
+	extTxFifoEntity: entity noc_switch_v1_00_a.txFifo
 		port map (
 			clk 		=> clk,
 			reset 		=> reset,
@@ -113,7 +114,7 @@ begin
 		
 	intTxPortSelectGenerate: for i in numIntPorts-1 downto 0 generate
 	
-		intTxPortSelectEntity: entity work.intTxPortSelect
+		intTxPortSelectEntity: entity noc_switch_v1_00_a.intTxPortSelect
 			generic map (
 				txPortNr			=> integerToPortNr(i)
 			)
@@ -130,7 +131,7 @@ begin
 	
 	end generate intTxPortSelectGenerate;
 	
-	extTxPortSelectEntity: entity work.extTxPortSelect
+	extTxPortSelectEntity: entity noc_switch_v1_00_a.extTxPortSelect
 		port map (
 			rxPortNrIn 			=> txFifo_rxPortNr(numIntPorts),
 			rxPortNrOut			=> txPortSelect_rxPortNr(numIntPorts),
@@ -144,7 +145,7 @@ begin
 		
 	intTxPortGenerate: for i in numIntPorts-1 downto 0 generate
 		
-		intTxPortEntity: entity work.txPort
+		intTxPortEntity: entity noc_switch_v1_00_a.txPort
 			port map(
 				clk			=> clk,
 				reset		=> reset,
@@ -159,7 +160,7 @@ begin
 	
 	extTxPortGenerate: for i in numExtPorts-1 downto 0 generate
 		
-		extTxPortEntity: entity work.txPort
+		extTxPortEntity: entity noc_switch_v1_00_a.txPort
 			port map(
 				clk			=> clk,
 				reset		=> reset,
@@ -174,7 +175,7 @@ begin
 	
 	rxPortGenerate: for i in numPorts-1 downto 0 generate
 	
-		rxPortEntity:entity work.rxPort
+		rxPortEntity:entity noc_switch_v1_00_a.rxPort
 			port map(
 				clk	 		=> clk,
 				reset 		=> reset,

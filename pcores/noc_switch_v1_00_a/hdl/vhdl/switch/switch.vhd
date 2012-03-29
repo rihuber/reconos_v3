@@ -1,8 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-use work.switchPkg.all;
-use work.headerPkg.all;
+library noc_switch_v1_00_a;
+use noc_switch_v1_00_a.switchPkg.all;
+use noc_switch_v1_00_a.headerPkg.all;
 
 entity switch is
 	generic(
@@ -40,7 +41,7 @@ begin
 
 	headerDetectorGenerate: for i in numPorts-1 downto 0 generate
 		
-		headerDetectorEntity : entity work.headerDetector
+		headerDetectorEntity : entity noc_switch_v1_00_a.headerDetector
 			port map(
 				clk 		=> clk,
 				reset 		=> reset,
@@ -54,7 +55,7 @@ begin
 	
 	headerDecoderGenerate: for i in numPorts-1 downto 0 generate
 		
-		headerDecoderEntity : entity work.headerDecoder
+		headerDecoderEntity : entity noc_switch_v1_00_a.headerDecoder
 			port map(
 				data		=> inputLinksIn(i).data(dataWidth-1 downto 0),
 				destAddr	=> router_routingRequest(i).addr,
@@ -67,7 +68,7 @@ begin
 		
 		invertedInputLinksInEmpty(i) <= not inputLinksIn(i).empty;
 		
-		rxEndOfPacketDetectorEntity: entity work.endOfPacketDetector
+		rxEndOfPacketDetectorEntity: entity noc_switch_v1_00_a.endOfPacketDetector
 			port map(
 				dataValid	=> invertedInputLinksInEmpty(i),
 				flag		=> inputLinksIn(i).data(dataWidth),
@@ -77,7 +78,7 @@ begin
 			
 		invertedOutputLinksInFull(i) <= not outputLinksIn(i).full;
 			
-		txEndOfPacketDetectorEntity: entity work.endOfPacketDetector
+		txEndOfPacketDetectorEntity: entity noc_switch_v1_00_a.endOfPacketDetector
 			port map(
 				dataValid	=> invertedOutputLinksInFull(i),
 				flag		=> outputLinksOutMuxOutput(i).data(dataWidth),
@@ -87,7 +88,7 @@ begin
 		
 	end generate endOfPacketDetectorGenerate;
 	
-	routerEntity: entity work.router
+	routerEntity: entity noc_switch_v1_00_a.router
 		generic map (
 			globalAddress	=> globalAddress
 		)

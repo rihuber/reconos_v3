@@ -2,9 +2,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-use work.utilPkg.all;
-use work.headerPkg.all;
-use work.switchPkg.all;
+library noc_switch_v1_00_a;
+use noc_switch_v1_00_a.utilPkg.all;
+use noc_switch_v1_00_a.headerPkg.all;
+use noc_switch_v1_00_a.switchPkg.all;
 
 entity txFifoSelect is
 	generic(
