@@ -45,11 +45,11 @@ PORT upstream1Data=upstreamData, DIR=I, BUS=upstream1, VEC=[0:8]
 PORT upstream1Full=upstreamFull, DIR=O, BUS=upstream1
 PORT upstream1WriteClock=upstreamWriteClock, SIGIS=Clk, DIR=I, BUS=upstream1
 
-PORT ringInputEmpty=ringInputEmpty, DIR=I, BUS=ringInput, VEC=[0:3]
-PORT ringInputData=ringInputData, DIR=I, BUS=ringInput, VEC=[0:35]
-PORT ringInputReadEnable=ringInputReadEnable, DIR=O, BUS=ringInput, VEC=[0:3]
+PORT ringInputEmpty=ringEmpty, DIR=I, BUS=ringInput, VEC=[0:3], ASSIGNMENT=REQUIRE
+PORT ringInputData=ringData, DIR=I, BUS=ringInput, VEC=[0:35], ASSIGNMENT=REQUIRE
+PORT ringInputReadEnable=ringReadEnable, DIR=O, BUS=ringInput, VEC=[0:3], ASSIGNMENT=REQUIRE
 
-PORT ringOutputReadEnable=ringOutputReadEnable, DIR=I, BUS=ringOutput, VEC=[0:3]
-PORT ringOutputData=ringOutputData, DIR=O, BUS=ringOutput, VEC=[0:35]
-PORT ringOutputEmpty=ringOutputEmpty, DIR=O, BUS=ringOutput, VEC=[0:3]
+PORT ringOutputReadEnable=ringReadEnable, DIR=I, BUS=ringOutput, VEC=[0:3], ASSIGNMENT=REQUIRE
+PORT ringOutputData=ringData, DIR=O, BUS=ringOutput, VEC=[0:35], ASSIGNMENT=REQUIRE
+PORT ringOutputEmpty=ringEmpty, DIR=O, BUS=ringOutput, VEC=[0:3], ASSIGNMENT=REQUIRE
 END

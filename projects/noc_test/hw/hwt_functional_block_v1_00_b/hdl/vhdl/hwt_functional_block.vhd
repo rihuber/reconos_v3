@@ -58,7 +58,11 @@ end hwt_functional_block;
 
 architecture implementation of hwt_functional_block is
 	
-	type STATE_TYPE is ( STATE_REPORT_TOKEN_RECEPTION, STATE_WAIT_FOR_COMMAND);
+	type STATE_TYPE is ( STATE_WAIT_FOR_TOKEN,
+						 STATE_REPORT_TOKEN_RECEPTION, 
+						 STATE_WAIT_FOR_COMMAND,
+						 STATE_SEND_TOKEN,
+						 STATE_REPORT_TOKEN_SENT	);
 
 	constant MBOX_RECV  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000000";
 	constant MBOX_SEND  : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
@@ -72,10 +76,11 @@ architecture implementation of hwt_functional_block is
 	signal i_memif  : i_memif_t;
 	signal o_memif  : o_memif_t;	
 	signal ignore   : std_logic_vector(C_FSL_WIDTH-1 downto 0);
+	signal reportTokenReception : std_logic;
+	signal tokenSent : std_logic;
 	
 	
-	
-	constant counterWidth : integer := 10;
+	constant counterWidth : integer := 2;
 	
 	type token_state is (IDLE, RECEIVING_TOKEN, HOLDING_TOKEN, SENDING_TOKEN);
 	signal state_p, state_n : token_state;
@@ -85,7 +90,7 @@ architecture implementation of hwt_functional_block is
 	constant counterMinValue : unsigned(counterWidth-1 downto 0) := (others => '0');
 	
 	signal dataValue_p, dataValue_n : std_logic_vector(7 downto 0);
-	signal reportTokenReception, reportCommandReception : std_logic;
+	signal reportCommandReception : std_logic;
 	signal button : std_logic;
 	
 begin
@@ -120,6 +125,9 @@ begin
 	
 	downstreamReadClock <= i_osif.clk;
 	upstreamWriteClock <= i_osif.clk;
+	
+	led <= '1' when state=STATE_WAIT_FOR_COMMAND
+				else '0';
     
 	-- os and memory synchronisation state machine
 	reconos_fsm: process (i_osif.clk,rst,o_osif,o_memif) is
@@ -128,109 +136,91 @@ begin
 		if rst = '1' then
 			osif_reset(o_osif);
 			memif_reset(o_memif);
-			state <= STATE_WAIT_FOR_COMMAND;
+			if resetWithToken = '1' then
+				state <= STATE_WAIT_FOR_COMMAND;
+			else
+				state <= STATE_WAIT_FOR_TOKEN;
+			end if;
 		elsif rising_edge(i_osif.clk) then
 			case state is
-				when STATE_WAIT_FOR_COMMAND =>
-					osif_mbox_get(i_osif, o_osif, MBOX_RECV, ignore, done);
-					if done then
+				when STATE_WAIT_FOR_TOKEN =>
+					if reportTokenReception = '1' then
 						state <= STATE_REPORT_TOKEN_RECEPTION;
 					end if;
-					
+				
 				when STATE_REPORT_TOKEN_RECEPTION =>
 					osif_mbox_put(i_osif, o_osif, MBOX_SEND, C_REPORT_TOKEN_RECEPTION, ignore, done);
 					if done then 
 						state <= STATE_WAIT_FOR_COMMAND;
 					end if;
-
+					
+				when STATE_WAIT_FOR_COMMAND =>
+					osif_mbox_get(i_osif, o_osif, MBOX_RECV, ignore, done);
+					if done then
+						state <= STATE_SEND_TOKEN;
+					end if;
+					
+				when STATE_SEND_TOKEN =>
+					if tokenSent = '1' then
+						state <= STATE_REPORT_TOKEN_SENT;
+					end if;
+					
+				when STATE_REPORT_TOKEN_SENT =>
+					osif_mbox_put(i_osif, o_osif, MBOX_SEND, C_REPORT_TOKEN_RECEPTION, ignore, done);
+					if done then 
+						state <= STATE_WAIT_FOR_TOKEN;
+					end if;
+					
 			end case;
 		end if;
 	end process;
 	
 	
-	nomem_output : process (state_p, counter_p, dataValue_p)
+	nomem_receiving_token : process(state, downstreamEmpty, downstreamData)
 	begin
-		led  <= '0';
 		downstreamReadEnable <= '0';
-		upstreamWriteEnable <= '0';
-		upstreamData <= (others => '-');
-		
-		if state_p = RECEIVING_TOKEN then
-				downstreamReadEnable <= '1';
-		elsif state_p = HOLDING_TOKEN then
-				led <= '1';
-		elsif state_p = SENDING_TOKEN then 
-			upstreamWriteEnable <= '1';
-			if counter_p = counterMaxValue then
-				upstreamData(7 downto 0) <= headerValue;
-			else
-				upstreamData(7 downto 0) <= dataValue_p;
-			end if;
-			if counter_p = counterMinValue then
-				upstreamData(8) <= '1';
-			else
-				upstreamData(8) <= '0';
-			end if;
-		end if;
-		
-	end process nomem_output;
-
-	nomem_nextState : process (state_p, counter_p, downstreamData, downstreamEmpty, button, upstreamFull, dataValue_p)
-		--variable controlBitVar: std_logic := '0';
-	begin
-		state_n <= state_p;
-		counter_n <= counter_p;
-		dataValue_n <= dataValue_p;
 		reportTokenReception <= '0';
-		reportCommandReception <= '0';
-		
-		case state_p is
-			when IDLE =>
-				if downstreamEmpty = '0' then
-					state_n <= RECEIVING_TOKEN;
+		if state = STATE_WAIT_FOR_TOKEN then
+			if downstreamEmpty = '0' then
+				downstreamReadEnable <= '1';
+				if downstreamData(8) = '1' then
+					reportTokenReception <= '1';
 				end if;
-			when RECEIVING_TOKEN =>
-				if downstreamEmpty = '0' then
-					dataValue_n <= downstreamData(7 downto 0);
-					if downstreamData(8) = '1' then
-						state_n <= HOLDING_TOKEN;
-						reportTokenReception <= '1';
-					end if;
-				end if;
-			when HOLDING_TOKEN =>
-				if button = '1' then
-					state_n <= SENDING_TOKEN;
-					reportCommandReception <= '1';
-				end if;
-			when SENDING_TOKEN =>
-				if upstreamFull = '0' then
-					if counter_p = counterMinValue then
-						state_n <= idle;
-						counter_n <= (others => '1');
-					else
-						counter_n <= counter_p - 1;
-					end if;
-				end if;
-		end case;
-	end process nomem_nextState;
-
-	mem_stateTransition : process (rst, i_osif.clk)
-	begin
-		if rst = '0' then
-			counter_p <= (others => '1');
-			dataValue_p <= "01010101";
-			if resetWithToken = '1' then
-				state_p <= HOLDING_TOKEN;
-			else
-				state_p <= IDLE;
 			end if;
-		elsif rising_edge(i_osif.clk) then
-			state_p <= state_n;
-			counter_p <= counter_n;
-			dataValue_p <= dataValue_n;
 		end if;
-	end process mem_stateTransition;
-
+	end process;
+	
+	upstreamData(7 downto 0) 	<= headerValue;
+	upstreamData(8) 			<= '1' when counter_p = counterMinValue 	else '0';
+	upstreamWriteEnable 		<= '1' when state = STATE_SEND_TOKEN 		else '0';
+	
+	
+	nomem_sending_counter : process(state, upstreamFull)
+	begin
+		counter_n <= counter_p;
+		tokenSent <= '0';
+		if state = STATE_SEND_TOKEN then
+			if upstreamFull = '0' then
+				if counter_p = counterMinValue then
+					tokenSent <= '1';
+				else
+					counter_n <= counter_p - 1;
+				end if;
+			end if;
+		else
+			counter_n <= counterMaxValue;
+		end if;
+	end process;
+	
+	
+	mem_counter_transition : process(i_osif.clk,rst)
+	begin
+		if rst = '1' then
+			counter_p <= counterMaxValue;
+		elsif rising_edge(i_osif.clk) then
+			counter_p <= counter_n;
+		end if;
+	end process;
 	
 end architecture;
 
