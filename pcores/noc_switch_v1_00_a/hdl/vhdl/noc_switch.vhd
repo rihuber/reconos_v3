@@ -58,28 +58,6 @@ architecture rtl of noc_switch is
 	signal swOutputLinksIn	: outputLinkInArray(numPorts-1 downto 0);
 	signal swOutputLinksOut	: outputLinkOutArray(numPorts-1 downto 0);
 	
-	signal outputBufferOut	: inputLinkInArray(numPorts-1 downto 0);
-	signal outputBufferIn	: inputLinkOutArray(numPorts-1 downto 0);
-	
-	signal loc_upstream0ReadEnable : std_logic;
-	signal loc_upstream0Data : std_logic_vector(8 downto 0);
-	signal loc_upstream0Empty : std_logic;
-	signal loc_upstream1ReadEnable : std_logic;
-	signal loc_upstream1Data : std_logic_vector(8 downto 0);
-	signal loc_upstream1Empty : std_logic;
-	signal loc_downstream0WriteEnable : std_logic;
-	signal loc_downstream0Full : std_logic;
-	signal loc_downstream0Data: std_logic_vector(8 downto 0);
-	signal loc_downstream1WriteEnable : std_logic;
-	signal loc_downstream1Full : std_logic;
-	signal loc_downstream1Data : std_logic_vector(8 downto 0);
-	signal loc_ringDataIn : std_logic_vector(8 downto 0);
-	signal loc_ringDataOut : std_logic_vector(8 downto 0);
-	signal loc_ringWriteEnable : std_logic;
-	signal loc_ringReadEnable : std_logic;
-	signal loc_ringEmpty : std_logic;
-	signal loc_ringFull : std_logic;
-	
 	                   
 	component fbSwitchFifo
 		port (
@@ -98,22 +76,8 @@ architecture rtl of noc_switch is
 	
 begin
 	
-	loc_upstream0ReadEnable <= not loc_downstream1Full;
-	loc_upstream1ReadEnable <= not loc_ringFull;
-	loc_downstream0WriteEnable <= not ringInputEmpty(0);
-	loc_downstream0Data <= ringInputData(8 downto 0);
-	loc_downstream1WriteEnable <= not loc_upstream0Empty;
-	loc_downstream1Data <= loc_upstream0Data;
-	loc_ringDataIn <= loc_upstream1Data;
-	loc_ringWriteEnable <= not loc_upstream1Empty;
-	loc_ringReadEnable <= ringOutputReadEnable(0);
-	
-	ringOutputData(8 downto 0) <= loc_ringDataOut;
-	ringOutputEmpty(0) <= loc_ringEmpty;
-	ringInputReadEnable(0) <= not loc_downstream0Full;
-	
 	-----------------------------------------------------------------
-	-- INPUT FROM FUNCTIONAL BLOCK
+	-- INPUT BUFFER FROM FUNCTIONAL BLOCK
 	-----------------------------------------------------------------
 	
 	fifo_upstream0 : fbSwitchFifo
@@ -123,10 +87,10 @@ begin
 			wr_clk => upstream0WriteClock,
 			din => upstream0Data,
 			wr_en => upstream0WriteEnable,
-			rd_en => loc_upstream0ReadEnable,
-			dout => loc_upstream0Data,
+			rd_en => swInputLinksOut(0).readEnable,
+			dout => swInputLinksIn(0).data,
 			full => upstream0Full,
-			empty => loc_upstream0Empty
+			empty => swInputLinksIn(0).empty
 		);
 	
 	fifo_upstream1 : fbSwitchFifo
@@ -136,22 +100,36 @@ begin
 			wr_clk => upstream1WriteClock,
 			din => upstream1Data,
 			wr_en => upstream1WriteEnable,
-			rd_en => loc_upstream1ReadEnable,
-			dout => loc_upstream1Data,
+			rd_en => swInputLinksOut(1).readEnable,
+			dout => swInputLinksIn(1).data,
 			full => upstream1Full,
-			empty => loc_upstream1Empty
+			empty => swInputLinksIn(1).empty
 		);
+		
+	-----------------------------------------------------------------
+	-- UNBUFFERED INPUT FROM RING
+	-----------------------------------------------------------------
+	
+	unbufferedInputFromRing : for i in 0 to numExtPorts-1 generate
+		swInputLinksIn(i+numIntPorts).data <= ringInputData(((dataWidth+1)*(i+1))-1 downto (dataWidth+1)*i);
+		swInputLinksIn(i+numIntPorts).empty <= ringInputEmpty(i);
+		ringInputReadEnable(i) <= swInputLinksOut(i+numIntPorts).readEnable;
+	end generate;
+		
+	-----------------------------------------------------------------
+	-- OUTPUT BUFFER TO FUNCTIONAL BLOCK
+	-----------------------------------------------------------------
 		
 	fifo_downstream0 : fbSwitchFifo
 		port map (
 			rst => reset,
 			rd_clk => downstream0ReadClock,
 			wr_clk => clk125,
-			din => loc_downstream0Data,
-			wr_en => loc_downstream0WriteEnable,
+			din => swOutputLinksOut(0).data,
+			wr_en => swOutputLinksOut(0).writeEnable,
 			rd_en => downstream0ReadEnable,
 			dout => downstream0Data,
-			full => loc_downstream0Full,
+			full => swOutputLinksIn(0).full,
 			empty => downstream0Empty
 		);
 	
@@ -160,28 +138,50 @@ begin
 			rst => reset,
 			rd_clk => downstream1ReadClock,
 			wr_clk => clk125,
-			din => loc_downstream1Data,
-			wr_en => loc_downstream1WriteEnable,
+			din => swOutputLinksOut(1).data,
+			wr_en => swOutputLinksOut(1).writeEnable,
 			rd_en => downstream1ReadEnable,
 			dout => downstream1Data,
-			full => loc_downstream1Full,
+			full => swOutputLinksIn(1).full,
 			empty => downstream1Empty
 		);
 		
-	fifo_ring : fbSwitchFifo
-		port map (
-			rst => reset,
-			rd_clk => clk125,
-			wr_clk => clk125,
-			din => loc_ringDataIn,
-			wr_en => loc_ringWriteEnable,
-			rd_en => loc_ringReadEnable,
-			dout => loc_ringDataOut,
-			full => loc_ringFull,
-			empty => loc_ringEmpty
-		);
-
-		
+	-----------------------------------------------------------------
+	-- OUTPUT BUFFER TO RING
+	-----------------------------------------------------------------
 	
+	outputBufferToRing : for i in 0 to numExtPorts-1 generate
+		fifo_ring : fbSwitchFifo
+			port map (
+				rst => reset,
+				rd_clk => clk125,
+				wr_clk => clk125,
+				din => swOutputLinksOut(i+numIntPorts).data,
+				wr_en => swOutputLinksOut(i+numIntPorts).writeEnable,
+				rd_en => ringOutputReadEnable(i),
+				dout => ringOutputData(((dataWidth+1)*(i+1))-1 downto (dataWidth+1)*i),
+				full => swOutputLinksIn(i+numIntPorts).full,
+				empty => ringOutputEmpty(i)
+			);
+	end generate;
+		
+	-----------------------------------------------------------------
+	-- SIMPLE SWITCH REPLACEMENT
+	-----------------------------------------------------------------
+	
+	-- Downstream 0 (input from ring line 0)
+	swOutputLinksOut(0).data <= swInputLinksIn(2).data;
+	swOutputLinksOut(0).writeEnable <= not swInputLinksIn(2).empty;
+	swInputLinksOut(2).readEnable <= not swOutputLinksIn(0).full;
+	
+	-- Downstream 1 (input from upstream 0)
+	swOutputLinksOut(1).data <= swInputLinksIn(0).data;
+	swOutputLinksOut(1).writeEnable <= not swInputLinksIn(0).empty;
+	swInputLinksOut(0).readEnable <= not swOutputLinksIn(1).full;
+	
+	-- Ring output line 0 (input from upstream 1)
+	swOutputLinksOut(2).data <= swInputLinksIn(1).data;
+	swOutputLinksOut(2).writeEnable <= not swInputLinksIn(1).empty;
+	swInputLinksOut(1).readEnable <= not swOutputLinksIn(2).full;
 	
 end architecture rtl;
