@@ -89,6 +89,8 @@ architecture implementation of hwt_functional_block is
 	constant counterMaxValue : unsigned(counterWidth-1 downto 0) := (others => '1');
 	constant counterMinValue : unsigned(counterWidth-1 downto 0) := (others => '0');
 	
+	signal header_p, header_n : std_logic_vector(31 downto 0);
+	
 	signal dataValue_p, dataValue_n : std_logic_vector(7 downto 0);
 	signal reportCommandReception : std_logic;
 	signal button : std_logic;
@@ -155,8 +157,9 @@ begin
 					end if;
 					
 				when STATE_WAIT_FOR_COMMAND =>
-					osif_mbox_get(i_osif, o_osif, MBOX_RECV, ignore, done);
+					osif_mbox_get(i_osif, o_osif, MBOX_RECV, header_n, done);
 					if done then
+						header_p <= header_n;
 						state <= STATE_SEND_TOKEN;
 					end if;
 					
@@ -190,7 +193,7 @@ begin
 		end if;
 	end process;
 	
-	upstreamData(7 downto 0) 	<= headerValue;
+	upstreamData(7 downto 0) 	<= header_p(7 downto 0);
 	upstreamData(8) 			<= '1' when counter_p = counterMinValue 	else '0';
 	upstreamWriteEnable 		<= '1' when state = STATE_SEND_TOKEN 		else '0';
 	

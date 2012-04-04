@@ -8,7 +8,7 @@ use noc_switch_v1_00_a.headerPkg.all;
 
 entity noc_switch is
 	generic (
-		globalAddr : std_logic_vector(4 downto 0) := (others => '0')
+		globalAddr : std_logic_vector(3 downto 0) := (others => '0')
 	);
   	port (
   		clk125					: in  std_logic;
@@ -71,6 +71,20 @@ architecture rtl of noc_switch is
 		full: OUT std_logic;
 		empty: OUT std_logic
 	);
+	end component;
+	
+	component switch is
+		generic(
+			globalAddress	: std_logic_vector(3 downto 0)	-- The global address of this switch. Packets with this global address are forwarded to the internal output link corresponding to the local address of the packet.
+		);
+		port (
+			clk				: in std_logic;
+			reset			: in std_logic;
+			inputLinksIn	: in inputLinkInArray(numPorts-1 downto 0);		-- Input signals of the input links (internal AND external links)
+			inputLinksOut	: out inputLinkOutArray(numPorts-1 downto 0);	-- Output signals of the input links (internal AND external links)
+			outputLinksIn	: in outputLinkInArray(numPorts-1 downto 0);	-- Input signals of the output links (internal AND external links)
+			outputLinksOut	: out outputLinkOutArray(numPorts-1 downto 0)	-- Output signals of the output links (internal AND external)
+		);
 	end component;
 	
 	
@@ -166,22 +180,20 @@ begin
 	end generate;
 		
 	-----------------------------------------------------------------
-	-- SIMPLE SWITCH REPLACEMENT
-	-----------------------------------------------------------------
+	-- THE SWITCH
+	-----------------------------------------------------------------	
 	
-	-- Downstream 0 (input from ring line 0)
-	swOutputLinksOut(0).data <= swInputLinksIn(2).data;
-	swOutputLinksOut(0).writeEnable <= not swInputLinksIn(2).empty;
-	swInputLinksOut(2).readEnable <= not swOutputLinksIn(0).full;
-	
-	-- Downstream 1 (input from upstream 0)
-	swOutputLinksOut(1).data <= swInputLinksIn(0).data;
-	swOutputLinksOut(1).writeEnable <= not swInputLinksIn(0).empty;
-	swInputLinksOut(0).readEnable <= not swOutputLinksIn(1).full;
-	
-	-- Ring output line 0 (input from upstream 1)
-	swOutputLinksOut(2).data <= swInputLinksIn(1).data;
-	swOutputLinksOut(2).writeEnable <= not swInputLinksIn(1).empty;
-	swInputLinksOut(1).readEnable <= not swOutputLinksIn(2).full;
+	sw : switch
+		generic map(
+			globalAddress => globalAddr
+		)
+		port map(
+			clk				=> clk125,
+			reset			=> reset,
+			inputLinksIn	=> swInputLinksIn,
+			inputLinksOut	=> swInputLinksOut,
+			outputLinksIn	=> swOutputLinksIn,
+			outputLinksOut	=> swOutputLinksOut
+		);
 	
 end architecture rtl;

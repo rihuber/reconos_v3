@@ -10,7 +10,7 @@ package headerPkg is
 	constant dataWidth		: integer := 8;
 	
 	constant addressWidth 	: integer := 6;
-	constant localAddrWidth	: integer := 1;
+	constant localAddrWidth	: integer := 2;
 	constant globalAddrWidth: integer := addressWidth - localAddrWidth;
 	
 	constant priorityWidth 	: integer := dataWidth - addressWidth;

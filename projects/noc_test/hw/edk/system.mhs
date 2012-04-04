@@ -292,7 +292,7 @@ BEGIN hwt_functional_block
 	PARAMETER INSTANCE = hwt_functional_block_0
 	PARAMETER HW_VER = v1.00.b
 	PARAMETER resetWithToken = 1
-	PARAMETER headerValue = 0b00000001
+	PARAMETER headerValue = 0b00000000
 	BUS_INTERFACE OS_SFSL = fsl_v20_0b
 	BUS_INTERFACE OS_MFSL = fsl_v20_0a
 	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
@@ -623,7 +623,7 @@ END
 BEGIN noc_switch
  PARAMETER INSTANCE = noc_switch_0
  PARAMETER HW_VER = 1.00.a
- PARAMETER gobalAddr = 0b00000
+ PARAMETER gobalAddr = 0b0000
  BUS_INTERFACE downstream0 = noc_switch_0_downstream0
  BUS_INTERFACE downstream1 = noc_switch_0_downstream1
  BUS_INTERFACE upstream0=noc_switch_0_upstream0
@@ -637,7 +637,7 @@ END
 BEGIN noc_switch
  PARAMETER INSTANCE = noc_switch_1
  PARAMETER HW_VER = 1.00.a
- PARAMETER gobalAddr = 0b00001
+ PARAMETER gobalAddr = 0b0001
  BUS_INTERFACE downstream0 = noc_switch_1_downstream0
  BUS_INTERFACE downstream1 = noc_switch_1_downstream1
  BUS_INTERFACE upstream0=noc_switch_1_upstream0
