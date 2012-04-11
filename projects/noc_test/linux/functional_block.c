@@ -60,12 +60,20 @@ int main(int argc, char ** argv)
 	}
 	printf("\n");
 
+	int addresses[4];
+	addresses[0] = 0;
+	addresses[1] = 1;
+	addresses[2] = 16;
+	addresses[3] = 17;
+	i = 0;
 	while(1)
 	{
+		i = (i+1) % 4;
+
 		printf("Waiting");
 		fflush(stdout);
 		int j;
-		for(j=0; j<10; j++)
+		for(j=0; j<5; j++)
 		{
 			printf(".");
 			fflush(stdout);
@@ -75,7 +83,7 @@ int main(int argc, char ** argv)
 
 		printf("Sending command\n");
 		fflush(stdout);
-		mbox_put(&mb_start,0);
+		mbox_put(&mb_start,addresses[i]);
 
 		printf("Waiting for answer\n");
 		fflush(stdout);
