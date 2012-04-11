@@ -55,7 +55,7 @@ begin
 	
 	mem_stateTransition : process(clk, reset) is
 	begin
-		if reset = '0' then
+		if reset = '1' then
 			state_p <= idleState;
 			rxPortNr_p <= portNrUndefined;
 		elsif rising_edge(clk) then

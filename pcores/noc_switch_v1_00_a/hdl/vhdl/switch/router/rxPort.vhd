@@ -44,7 +44,7 @@ begin
 	
 	mem_stateTransition : process(clk, reset) is
 	begin
-		if reset = '0' then
+		if reset = '1' then
 			txPortNr_p <= portNrUndefined;
 		elsif rising_edge(clk) then
 			txPortNr_p <= txPortNr_n;

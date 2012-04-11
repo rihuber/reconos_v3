@@ -7,7 +7,7 @@ use noc_switch_v1_00_a.headerPkg.all;
 
 entity switch is
 	generic(
-		globalAddress	: globalAddr	-- The global address of this switch. Packets with this global address are forwarded to the internal output link corresponding to the local address of the packet.
+		globalAddress	: globalAddr := "0000"	-- The global address of this switch. Packets with this global address are forwarded to the internal output link corresponding to the local address of the packet.
 	);
 	port (
 		clk				: in std_logic;

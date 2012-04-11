@@ -52,7 +52,7 @@ begin
 	
 	mem_stateTransition : process (clk, reset) is
 	begin
-		if reset = '0' then
+		if reset = '1' then
 			state_p <= idle;
 		elsif rising_edge(clk) then
 			state_p <= state_n;
