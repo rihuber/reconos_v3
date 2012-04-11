@@ -2,9 +2,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library proc_common_v3_00_a;
-use proc_common_v3_00_a.proc_common_pkg.all;
-
 library reconos_v3_00_a;
 use reconos_v3_00_a.reconos_pkg.all;
 
@@ -198,7 +195,7 @@ begin
 	upstreamWriteEnable 		<= '1' when state = STATE_SEND_TOKEN 		else '0';
 	
 	
-	nomem_sending_counter : process(state, upstreamFull)
+	nomem_sending_counter : process(state, upstreamFull, counter_p)
 	begin
 		counter_n <= counter_p;
 		tokenSent <= '0';
