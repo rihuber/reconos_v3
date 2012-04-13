@@ -41,11 +41,6 @@ entity noc_switch is
 		ringOutputData			: out std_logic_vector((numExtPorts*(dataWidth+1))-1 downto 0);
 		ringOutputEmpty			: out std_logic_vector(numExtPorts-1 downto 0)
 		
---		ringInputIn				: in  inputLinkInArray(numExtPorts-1 downto 0);
---		ringInputOut			: out inputLinkOutArray(numExtPorts-1 downto 0);
-
-		--ringOutputIn			: in  inputLinkOutArray(numExtPorts-1 downto 0);
-		--ringOutputOut			: out inputLinkInArray(numExtPorts-1 downto 0)
   	);
 end noc_switch;
 
@@ -60,19 +55,32 @@ architecture rtl of noc_switch is
 	signal upstreamInputLinksIn	: inputLinkInArray(numIntPorts-1 downto 0);
 	
 	                   
---	component fbSwitchFifo
---		port (
---		rst: IN std_logic;
---		rd_clk: IN std_logic;
---		wr_clk: IN std_logic;
---		din: IN std_logic_VECTOR(8 downto 0);
---		wr_en: IN std_logic;
---		rd_en: IN std_logic;
---		dout: OUT std_logic_VECTOR(8 downto 0);
---		full: OUT std_logic;
---		empty: OUT std_logic
---	);
---	end component;
+	component fbSwitchFifo
+  		port(
+		    rst : in std_logic;
+		    wr_clk : in std_logic;
+		    rd_clk : in std_logic;
+		    din : in std_logic_vector(8 downto 0);
+		    wr_en : in std_logic;
+		    rd_en : in std_logic;
+		    dout : out std_logic_vector(8 downto 0);
+		    full : out std_logic;
+		    empty : out std_logic
+  		);
+  	end component;
+
+	component interSwitchFifo
+	  port (
+	    clk : in std_logic;
+	    rst : in std_logic;
+	    din : in std_logic_vector(8 downto 0);
+	    wr_en : in std_logic;
+	    rd_en : in std_logic;
+	    dout : out std_logic_vector(8 downto 0);
+	    full : out std_logic;
+	    empty : out std_logic
+	  );
+	end component;
 
 	
 	component switch is
@@ -96,10 +104,11 @@ begin
 	-- INPUT BUFFER FROM FUNCTIONAL BLOCK
 	-----------------------------------------------------------------
 	
-	fifo_upstream0 : entity noc_switch_v1_00_a.interSwitchFifo
+	fifo_upstream0 : fbSwitchFifo
 		port map (
 			rst => reset,
-			clk => clk125,
+			rd_clk => clk125,
+			wr_clk => upstream0WriteClock,
 			din => upstream0Data,
 			wr_en => upstream0WriteEnable,
 			rd_en => swInputLinksOut(0).readEnable,
@@ -108,10 +117,11 @@ begin
 			empty => upstreamInputLinksIn(0).empty
 		);
 	
-	fifo_upstream1 : entity noc_switch_v1_00_a.interSwitchFifo
+	fifo_upstream1 : fbSwitchFifo
 		port map (
 			rst => reset,
-			clk => clk125,
+			rd_clk => clk125,
+			wr_clk => upstream0WriteClock,
 			din => upstream1Data,
 			wr_en => upstream1WriteEnable,
 			rd_en => swInputLinksOut(1).readEnable,
@@ -135,13 +145,14 @@ begin
 	end process;
 		
 	-----------------------------------------------------------------
-	-- OUTPUT BUFFER TO FUNCTIONAL BLOCK
+	-- std_logicPUT BUFFER TO FUNCTIONAL BLOCK
 	-----------------------------------------------------------------
 		
-	fifo_downstream0 : entity noc_switch_v1_00_a.interSwitchFifo
+	fifo_downstream0 : fbSwitchFifo
 		port map (
 			rst => reset,
-			clk => clk125,
+			rd_clk => downstream0ReadClock,
+			wr_clk => clk125,
 			din => swOutputLinksOut(0).data,
 			wr_en => swOutputLinksOut(0).writeEnable,
 			rd_en => downstream0ReadEnable,
@@ -150,10 +161,11 @@ begin
 			empty => downstream0Empty
 		);
 	
-	fifo_downstream1 : entity noc_switch_v1_00_a.interSwitchFifo
+	fifo_downstream1 : fbSwitchFifo
 		port map (
 			rst => reset,
-			clk => clk125,
+			rd_clk => downstream1ReadClock,
+			wr_clk => clk125,
 			din => swOutputLinksOut(1).data,
 			wr_en => swOutputLinksOut(1).writeEnable,
 			rd_en => downstream1ReadEnable,
@@ -167,7 +179,7 @@ begin
 	-----------------------------------------------------------------
 	
 	outputBufferToRing : for i in 0 to numExtPorts-1 generate
-		fifo_ring : entity noc_switch_v1_00_a.interSwitchFifo
+		fifo_ring : interSwitchFifo
 			port map (
 				rst => reset,
 				clk => clk125,

@@ -15,6 +15,6 @@ lib noc_switch_v1_00_a switch/router/txFifoSelect.vhd vhdl
 lib noc_switch_v1_00_a switch/router/txPort.vhd vhdl
 lib noc_switch_v1_00_a switch/router/router.vhd vhdl
 lib noc_switch_v1_00_a switch/switch.vhd vhdl
-lib noc_switch_v1_00_a switch/interSwitchFifo.vhd vhdl
+
 
 lib noc_switch_v1_00_a noc_switch.vhd vhdl
