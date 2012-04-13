@@ -8,7 +8,7 @@ OPTION HDL = VHDL
 OPTION IP_GROUP = MICROBLAZE:PPC:USER
 OPTION DESC = NOC_SWITCH
 OPTION ARCH_SUPPORT_MAP = (others=DEVELOPMENT)
-##OPTION STYLE = MIX
+OPTION STYLE = MIX
 
 ## Bus Interfaces
 BUS_INTERFACE BUS=downstream0, BUS_STD=noc_switch_downstream, BUS_TYPE=INITIATOR
@@ -19,7 +19,7 @@ BUS_INTERFACE BUS=ringInput, BUS_STD=noc_ring, BUS_TYPE=TARGET
 BUS_INTERFACE BUS=ringOutput, BUS_STD=noc_ring, BUS_TYPE=INITIATOR
 
 ## Generics for VHDL or Parameters for Verilog
-PARAMETER gobalAddr=0b0000, ASSIGNMENT=REQUIRE, DESC="The global address of the switch (must be unique in the design)", DT=std_logic_vector, PERMIT=BASE_USER, TYPE=HDL
+PARAMETER globalAddr=0b0000, ASSIGNMENT=REQUIRE, DESC="The global address of the switch (must be unique in the design)", DT=std_logic_vector, PERMIT=BASE_USER, TYPE=HDL
 
 ## Ports
 PORT reset="", DIR=I, SIGIS=RST

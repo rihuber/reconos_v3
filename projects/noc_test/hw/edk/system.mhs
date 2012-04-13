@@ -623,7 +623,7 @@ END
 BEGIN noc_switch
  PARAMETER INSTANCE = noc_switch_0
  PARAMETER HW_VER = 1.00.a
- PARAMETER gobalAddr = 0b0000
+ PARAMETER globalAddr = 0b0000
  BUS_INTERFACE downstream0 = noc_switch_0_downstream0
  BUS_INTERFACE downstream1 = noc_switch_0_downstream1
  BUS_INTERFACE upstream0=noc_switch_0_upstream0
@@ -637,7 +637,7 @@ END
 BEGIN noc_switch
  PARAMETER INSTANCE = noc_switch_1
  PARAMETER HW_VER = 1.00.a
- PARAMETER gobalAddr = 0b0001
+ PARAMETER globalAddr = 0b0001
  BUS_INTERFACE downstream0 = noc_switch_1_downstream0
  BUS_INTERFACE downstream1 = noc_switch_1_downstream1
  BUS_INTERFACE upstream0=noc_switch_1_upstream0
