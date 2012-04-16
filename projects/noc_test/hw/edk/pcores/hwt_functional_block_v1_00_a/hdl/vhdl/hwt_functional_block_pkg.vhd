@@ -1,6 +1,7 @@
 
 library IEEE;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library noc_switch_v1_00_a;
 use noc_switch_v1_00_a.headerPkg;
@@ -12,9 +13,9 @@ package hwt_functional_block_pkg is
 	constant idpWidth : integer := 32;
 	
 	-- The number of bytes used to represent an IDP
-	constant idpBytes : integer := idpWidth/dataWidth;
+	constant idpBytes : integer := idpWidth/headerPkg.dataWidth;
 	
-	subtype idpByteCounter is unsigned(toLog2Ceil(idpBytes) downto 0); 
+	subtype idpByteCounter is unsigned(toLog2Ceil(idpBytes)-1 downto 0); 
 	constant idpByteCounterMax : idpByteCounter := to_unsigned(idpBytes-1, toLog2Ceil(idpBytes));
 	
 	-- The number of parallel bits in the up- and downstream

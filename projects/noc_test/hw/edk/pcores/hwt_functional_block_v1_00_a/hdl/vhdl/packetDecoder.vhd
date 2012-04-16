@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library hwt_functional_block_v1_00_a;
 use hwt_functional_block_v1_00_a.hwt_functional_block_pkg.all;
@@ -57,6 +58,7 @@ begin
 	endOfPacket <= downstreamData(dataWidth);
 	downstreamReadEnable <= readEnable when state_p = STATE_START_PACKET_TRANSFER or state_p = STATE_PACKET_TRANSFER else '1';
 	dataValid <= not downstreamEmpty when state_p = STATE_START_PACKET_TRANSFER or state_p = STATE_PACKET_TRANSFER else '0';
+	direction <= direction_p;
 	
 	-- priority
 	priority_n <= downstreamData(dataWidth-1 downto dataWidth-priorityWidth) when state_p = STATE_DECODE_HEADER_1
@@ -91,7 +93,7 @@ begin
 	begin
 		idpByteCounter_n <= idpByteCounterMax;
 		if state_p = STATE_DECODE_SRC_IDP or state_p = STATE_DECODE_DST_IDP then
-			if downstreamEmpty = '0' and idpByteCounter_p /= (others => '0') then
+			if downstreamEmpty = '0' and idpByteCounter_p /= 0 then
 				idpByteCounter_n <= idpByteCounter_p - 1;
 			end if;
 		end if;
@@ -111,12 +113,12 @@ begin
 						state_n <= STATE_DECODE_SRC_IDP;
 				
 				when STATE_DECODE_SRC_IDP =>
-					if idpByteCounter_p = (others => '0') then
+					if idpByteCounter_p = 0 then
 						state_n <= STATE_DECODE_DST_IDP;
 					end if;
 				
 				when STATE_DECODE_DST_IDP =>
-					if idpByteCounter_p = (others => '0') then
+					if idpByteCounter_p = 0 then
 						state_n <= STATE_START_PACKET_TRANSFER;
 					end if;
 					
@@ -137,14 +139,14 @@ begin
 	mem_stateTransition : process(clk, reset)
 	begin
 		if reset = '1' then
-			state_p <= STATE_IDLE;
+			state_p <= STATE_DECODE_HEADER_1;
 			direction_p <= '-';
 			priority_p <= (others => '-');
 			idpByteCounter_p <= idpByteCounterMax;
 			srcIdp_p <= (others => '-');
 			dstIdp_p <= (others => '-');
 			latencyCritical_p <= '-';
-		elsif risingEdge(clk) then
+		elsif rising_edge(clk) then
 			state_p <= state_n;
 			direction_p <= direction_n;
 			priority_p <= priority_n;
