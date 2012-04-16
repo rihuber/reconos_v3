@@ -21,6 +21,12 @@ package hwt_functional_block_pkg is
 	-- The number of parallel bits in the up- and downstream
 	constant dataWidth : integer := headerPkg.dataWidth;
 	
+	-- The number of bits of the global address
+	constant globalAddrWidth : integer := headerPkg.globalAddrWidth;
+	
+	-- The number of bits of the local address
+	constant localAddrWidth : integer := headerPkg.localAddrWidth;
+	
 	-- The number of bits used to represent a priority
 	constant priorityWidth : integer := headerPkg.priorityWidth;
 	
