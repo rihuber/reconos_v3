@@ -29,9 +29,9 @@ entity packetEncoder is
 		dstIdp					: in  std_logic_vector(idpWidth-1 downto 0); 		-- The destination IDP
 		readEnable				: out std_logic										-- Read enable for the applied data
 	);
-end entity packetDecoder;
+end entity packetEncoder;
 
-architecture rtl of packetDecoder is
+architecture rtl of packetEncoder is
 	
 	type state_t is ( STATE_IDLE,
 					STATE_ENCODE_HEADER_1,
@@ -47,120 +47,149 @@ architecture rtl of packetDecoder is
 	signal srcIdp_n, srcIdp_p					: std_logic_vector(idpWidth-1 downto 0);
 	signal dstIdp_n, dstIdp_p					: std_logic_vector(idpWidth-1 downto 0);
 	signal idpByteCounter_n, idpByteCounter_p	: idpByteCounter;
+	signal globalAddress_n, globalAddress_p		: std_logic_vector(globalAddrWidth-1 downto 0);
+	signal localAddress_n, localAddress_p		: std_logic_vector(localAddrWidth-1 downto 0);
+	
+	function createHeaderByte1(prio: std_logic_vector(priorityWidth-1 downto 0);
+							   globAddr: std_logic_vector(globalAddrWidth-1 downto 0);
+							   locAddr: std_logic_vector(localAddrWidth-1 downto 0)) return std_logic_vector is
+		variable result : std_logic_vector(dataWidth-1 downto 0);
+	begin
+		result(dataWidth-1 downto dataWidth-priorityWidth) := prio;
+		result(dataWidth-priorityWidth-1 downto dataWidth-priorityWidth-globalAddrWidth) := globAddr;
+		result(dataWidth-priorityWidth-globalAddrWidth-1 downto dataWidth-priorityWidth-globalAddrWidth-localAddrWidth) := locAddr;
+		return result;
+	end createHeaderByte1;
+	
+	function createHeaderByte2(dir: std_logic; latCrit: std_logic) return std_logic_vector is
+		variable result : std_logic_vector(dataWidth-1 downto 0) := (others => '-');
+	begin
+		result(directionBit) := dir;
+		result(latencyCriticalBit) := latCrit;
+		return result;
+	end createHeaderByte2;
+	
 	
 begin
 
 	-- output
-	nomem_output : process(state_p)
+	nomem_output : process(state_p, priority_p, globalAddress_p, localAddress_p, direction_p, latencyCritical_p, srcIdp_p, idpByteCounter_p, dstIdp_p, data, endOfPacket, dataValid, upstreamFull)
 	begin
 		-- default assingents
 		upstreamData(dataWidth-1 downto 0) <= (others => '-');
-		upstreamData(dataWidth) <= '0';
+		upstreamData(dataWidth) <= '-';
 		upstreamWriteEnable <= '0';
 		readEnable <= '0';
 		
 		case state_p is
 			when STATE_IDLE =>
 				
-			when STATE_DECODE_HEADER_1 =>
-				upstreamData(dataWidth-1 downto dataWidth-prioWidth) <= 
+			when STATE_ENCODE_HEADER_1 =>
+				upstreamData(dataWidth-1 downto 0) <= createHeaderByte1(priority_p, globalAddress_p, localAddress_p);
+				upstreamData(dataWidth) <= '0';
+				upstreamWriteEnable <= '1';
+				
+			when STATE_ENCODE_HEADER_2 =>
+				upstreamData(dataWidth-1 downto 0) <= createHeaderByte2(direction_p, latencyCritical_p);
+				upstreamData(dataWidth) <= '0';
+				upstreamWriteEnable <= '1';
+			
+			when STATE_ENCODE_SRC_IDP =>	
+				upstreamData(dataWidth-1 downto 0) <= srcIdp_p((to_integer(idpByteCounter_p)*dataWidth) + (dataWidth-1) downto to_integer(idpByteCounter_p)*dataWidth);
+				upstreamData(dataWidth) <= '0';
+				upstreamWriteEnable <= '1';
+			
+			when STATE_ENCODE_DST_IDP =>	
+				upstreamData(dataWidth-1 downto 0) <= dstIdp_p((to_integer(idpByteCounter_p)*dataWidth) + (dataWidth-1) downto to_integer(idpByteCounter_p)*dataWidth);
+				upstreamData(dataWidth) <= '0';
+				upstreamWriteEnable <= '1';
+				
+			when STATE_PACKET_TRANSFER =>
+				upstreamData(dataWidth-1 downto 0) <= data;
+				upstreamData(dataWidth) <= endOfPacket;
+				upstreamWriteEnable <= dataValid;
+				if dataValid = '1' then
+					readEnable <= not upstreamFull;
+				else
+					readEnable <= '0';
+				end if;
 		end case;
-		if state_p = STATE_DECODE_DST_IDP then
-			dstIdp_n((to_integer(idpByteCounter_p)*dataWidth) + (dataWidth-1) downto to_integer(idpByteCounter_p)*dataWidth) <= downstreamData(dataWidth-1 downto 0);
-		end if;
-	end process nomem_dstIdp;
+	end process nomem_output;
 	
-	srcIdp <= srcIdp_p;
-	dstIdp <= dstIdp_p;
-	latencyCritical <= latencyCritical_p;
-	priority <= priority_p;
-	data <= downstreamData(dataWidth-1 downto 0);
-	startOfPacket <= '1' when state_p = STATE_START_PACKET_TRANSFER else '0';
-	endOfPacket <= downstreamData(dataWidth);
-	downstreamReadEnable <= readEnable when state_p = STATE_START_PACKET_TRANSFER or state_p = STATE_PACKET_TRANSFER else '1';
-	dataValid <= not downstreamEmpty when state_p = STATE_START_PACKET_TRANSFER or state_p = STATE_PACKET_TRANSFER else '0';
-	direction <= direction_p;
+	-- local address
+	localAddress_n <= localAddress when dataValid = '1' and state_p = STATE_IDLE
+				  else localAddress_p;
+				  
+  	-- global address
+	globalAddress_n <= globalAddress when dataValid = '1' and state_p = STATE_IDLE
+				  else globalAddress_p;
 	
 	-- priority
-	priority_n <= priority when dataValid = '1'
+	priority_n <= priority when dataValid = '1' and state_p = STATE_IDLE
 				  else priority_p;
 	
 	--direction
-	direction_n <= direction when dataValid = '1'
+	direction_n <= direction when dataValid = '1' and state_p = STATE_IDLE
 				   else direction_p;
 
 	-- latency critical
-	latencyCritical_n <= latencyCritical when dataValid = '1'
+	latencyCritical_n <= latencyCritical when dataValid = '1' and state_p = STATE_IDLE
 						 else latencyCritical_p;
-						 
 	
 	-- src idp
-	srcIdp_n <= srcIdp when dataValid = '1'
+	srcIdp_n <= srcIdp when dataValid = '1' and state_p = STATE_IDLE
 				else srcIdp_p;
 	
 	-- dst idp
-	dstIdp_n <= dstIdp when dataValid = '1'
+	dstIdp_n <= dstIdp when dataValid = '1' and state_p = STATE_IDLE
 				else dstIdp_p;
 	
-	-- srcIdp
-	nomem_srcIdp : process(state_p, srcIdp_p, downstreamData, idpByteCounter_p)
-	begin
-		srcIdp_n <= srcIdp_p;
-		if state_p = STATE_DECODE_SRC_IDP then
-			srcIdp_n((to_integer(idpByteCounter_p)*dataWidth) + (dataWidth-1) downto to_integer(idpByteCounter_p)*dataWidth) <= downstreamData(dataWidth-1 downto 0);
-		end if;
-	end process nomem_srcIdp;
-	
-	nomem_dstIdp : process(state_p, dstIdp_p, downstreamData, idpByteCounter_p)
-	begin
-		dstIdp_n <= dstIdp_p;
-		if state_p = STATE_DECODE_DST_IDP then
-			dstIdp_n((to_integer(idpByteCounter_p)*dataWidth) + (dataWidth-1) downto to_integer(idpByteCounter_p)*dataWidth) <= downstreamData(dataWidth-1 downto 0);
-		end if;
-	end process nomem_dstIdp;
-	
-	nomem_idpByteCounter : process(state_p, idpByteCounter_p, downstreamEmpty)
+	nomem_idpByteCounter : process(state_p, idpByteCounter_p, upstreamFull)
 	begin
 		idpByteCounter_n <= idpByteCounterMax;
-		if state_p = STATE_DECODE_SRC_IDP or state_p = STATE_DECODE_DST_IDP then
-			if downstreamEmpty = '0' and idpByteCounter_p /= 0 then
+		if state_p = STATE_ENCODE_SRC_IDP or state_p = STATE_ENCODE_DST_IDP then
+			if upstreamFull = '0' and idpByteCounter_p /= 0 then
 				idpByteCounter_n <= idpByteCounter_p - 1;
 			end if;
 		end if;
 	end process nomem_idpByteCounter;
 
-	nomem_nextState : process(state_p, dataValid)
+	nomem_nextState : process(state_p, dataValid, startOfPacket, upstreamFull, idpByteCounter_p, endOfPacket)
 	begin
 		-- Default: keep current state
 		state_n <= state_p;
 		
-		if dataValid = '1' and upstreamFull = '0' then
-			case state_p is
-				when STATE_IDLE =>
+		case state_p is
+			when STATE_IDLE =>
+				if dataValid = '1' and startOfPacket = '1' then
 					state_n <= STATE_ENCODE_HEADER_1;
-					
-				when STATE_ENCODE_HEADER_1 =>
-					state_n <= STATE_DECODE_HEADER_2;
-					
-				when STATE_ENCODE_HEADER_2 =>
-						state_n <= STATE_ENCODE_SRC_IDP;
+				end if;
 				
-				when STATE_ENCODE_SRC_IDP =>
-					if idpByteCounter_p = 0 then
-						state_n <= STATE_ENCODE_DST_IDP;
-					end if;
+			when STATE_ENCODE_HEADER_1 =>
+				if upstreamFull = '0' then
+					state_n <= STATE_ENCODE_HEADER_2;
+				end if;
 				
-				when STATE_ENCODE_DST_IDP =>
-					if idpByteCounter_p = 0 then
-						state_n <= STATE_PACKET_TRANSFER;
-					end if;
-					
-				when STATE_PACKET_TRANSFER =>
-					if endOfPacket = '1' then
-						state_n <= STATE_IDLE;
-					end if;
-			end case;
-		end if;
+			when STATE_ENCODE_HEADER_2 =>
+				if upstreamFull = '0' then
+					state_n <= STATE_ENCODE_SRC_IDP;
+				end if;
+			
+			when STATE_ENCODE_SRC_IDP =>
+				if upstreamFull = '0' and idpByteCounter_p = 0 then
+					state_n <= STATE_ENCODE_DST_IDP;
+				end if;
+			
+			when STATE_ENCODE_DST_IDP =>
+				if upstreamFull = '0' and idpByteCounter_p = 0 then
+					state_n <= STATE_PACKET_TRANSFER;
+				end if;
+				
+			when STATE_PACKET_TRANSFER =>
+				if upstreamFull = '0' and endOfPacket = '1' then
+					state_n <= STATE_IDLE;
+				end if;
+		end case;
 		
 	end process nomem_nextState;
 
@@ -174,6 +203,8 @@ begin
 			srcIdp_p <= (others => '-');
 			dstIdp_p <= (others => '-');
 			latencyCritical_p <= '-';
+			globalAddress_p <= (others => '-');
+			localAddress_p <= (others => '-');
 		elsif rising_edge(clk) then
 			state_p <= state_n;
 			direction_p <= direction_n;
@@ -182,7 +213,10 @@ begin
 			latencyCritical_p <= latencyCritical_n;
 			srcIdp_p <= srcIdp_n;
 			dstIdp_p <= dstIdp_n;
+			globalAddress_p <= globalAddress_n;
+			localAddress_p <= localAddress_n;
 		end if;
 	end process mem_stateTransition;
 
 end architecture rtl;
+
