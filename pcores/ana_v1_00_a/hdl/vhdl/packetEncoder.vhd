@@ -2,8 +2,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library hwt_functional_block_v1_00_a;
-use hwt_functional_block_v1_00_a.hwt_functional_block_pkg.all;
+library ana_v1_00_a;
+use ana_v1_00_a.anaPkg.all;
 
 entity packetEncoder is
 	port (

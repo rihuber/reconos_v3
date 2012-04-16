@@ -7,7 +7,7 @@ library noc_switch_v1_00_a;
 use noc_switch_v1_00_a.headerPkg;
 use noc_switch_v1_00_a.utilPkg.all;
 
-package hwt_functional_block_pkg is
+package anaPkg is
 
 	-- The number of bits used to represent an IDP
 	constant idpWidth : integer := 32;
@@ -36,8 +36,8 @@ package hwt_functional_block_pkg is
 	-- The position of the 'latency critical' bit
 	constant latencyCriticalBit : integer := 1;
 
-end hwt_functional_block_pkg;
+end anaPkg;
 
-package body hwt_functional_block_pkg is
+package body anaPkg is
 	
-end hwt_functional_block_pkg;
+end anaPkg;
