@@ -16,6 +16,6 @@ architecture rtl of progressCtr is
 	
 begin
 
-	packetAvailable <= '0' when localRAMValidPointer = readPointer else '0';
+	packetAvailable <= '0' when localRAMValidPointer = readPointer else '1';
 
 end architecture rtl;

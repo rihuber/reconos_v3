@@ -36,11 +36,12 @@ architecture structural of userLogic is
 	signal localRAMCtrReadEnable		: std_logic;
 	signal localRAMCtrDataOut			: std_logic_vector(31 downto 0);
 	signal localRAMCtrAddr				: std_logic_vector(C_LOCAL_RAM_ADDRESS_WIDTH-1 downto 0);
-	signal localRAMCtrDataIn			: std_logic_vector(31 downto 0);
 	
 	signal progressCtrPacketAvailable	: std_logic;
 
 begin
+
+	localRAMReader_addr <= localRAMCtrAddr;
 
 	localRAMCtr: entity ana_hwt_sw2hw_v1_00_a.localRAMCtr
 		generic map(
@@ -53,7 +54,7 @@ begin
 			readEnable	=> localRAMCtrReadEnable,
 			dout		=> localRAMCtrDataOut,
 			ramAddr		=> localRAMCtrAddr,
-			ramData		=> localRAMCtrDataIn
+			ramData		=> localRAMReader_dout
 		);
 		
 	progressCtr: entity ana_hwt_sw2hw_v1_00_a.progressCtr
