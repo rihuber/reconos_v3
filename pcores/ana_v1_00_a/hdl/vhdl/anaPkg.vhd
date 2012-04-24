@@ -39,6 +39,7 @@ package anaPkg is
 	-- The size of the ring buffer used to send data from software to hardware
 	constant sw2hwRamSize : integer := 64;
 	
+	
 end anaPkg;
 
 package body anaPkg is
