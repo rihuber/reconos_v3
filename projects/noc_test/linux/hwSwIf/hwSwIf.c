@@ -7,10 +7,10 @@
 reconosNoCPacket* createDummyPacket(uint32_t payloadLength)
 {
 	reconosNoCPacket* result = malloc(sizeof(reconosNoCPacket));
-	result->direction = 0;
+	result->direction = 1;
 	result->srcIdp = 0x03040506;
 	result->dstIdp = 0x0708090a;
-	result->latencyCritical = 1;
+	result->latencyCritical = 0;
 	result->priority = 0;
 	result->hwAddrGlobal = 1;
 	result->hwAddrLocal = 0;

@@ -440,7 +440,7 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 	uint32_t writeOffset = interface->writeOffset;
 
 	// write the packetLength
-	uint32_t packetLength = newPacket->payloadLength + HEADER_SIZE;
+	uint32_t packetLength = newPacket->payloadLength + HEADER_SIZE -1;
 	sw2hwPacketProcessingThreadWriteIntegerToCharArray(ringBuffer, packetLength, writeOffset, &writeOffset);
 
 	// write header byte 1
@@ -586,8 +586,11 @@ void* sw2hwPointerExchangeThreadMain(void* arg)
 		}
 		interface->writePointerDirty = 0;
 
-		// fetch the current write offset
+		// fetch the current write offset (cast from byte to word offset)
 		interface->hwWriteOffset = interface->writeOffset;
+		while(interface->hwWriteOffset % 4 != 0)
+			interface->hwWriteOffset++;
+		interface->hwWriteOffset = interface->hwWriteOffset/4;
 		RECONOS_NOC_PRINT("SW -> HW interface (pointerExchangeThread): release pointer mutex\n");
 		pthread_mutex_unlock(&interface->pointersMutex);
 
