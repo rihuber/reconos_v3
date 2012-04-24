@@ -18,6 +18,8 @@ package anaPkg is
 	
 	function toLog2Ceil (x: integer) return integer;
 	
+--	subtype idpByteCounter is unsigned(1 downto 0); 
+--	constant idpByteCounterMax : idpByteCounter := (1 downto 0 => '1');
 	subtype idpByteCounter is unsigned(toLog2Ceil(idpBytes)-1 downto 0); 
 	constant idpByteCounterMax : idpByteCounter := to_unsigned(idpBytes-1, toLog2Ceil(idpBytes));
 	
@@ -38,6 +40,7 @@ package anaPkg is
 	
 	-- The size of the ring buffer used to send data from software to hardware
 	constant sw2hwRamSize : integer := 64;
+	
 	
 end anaPkg;
 
