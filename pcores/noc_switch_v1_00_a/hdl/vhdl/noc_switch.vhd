@@ -196,17 +196,42 @@ begin
 	-- THE SWITCH
 	-----------------------------------------------------------------	
 	
-	sw : switch
-		generic map(
-			globalAddress => globalAddr
-		)
-		port map(
-			clk				=> clk125,
-			reset			=> reset,
-			inputLinksIn	=> swInputLinksIn,
-			inputLinksOut	=> swInputLinksOut,
-			outputLinksIn	=> swOutputLinksIn,
-			outputLinksOut	=> swOutputLinksOut
-		);
+	swOutputLinksOut(0).data <= swInputLinksIn(1).data;
+	swOutputLinksOut(0).writeEnable <= not swInputLinksIn(1).empty;
+	swInputLinksOut(1).readEnable <= not swOutputLinksIn(0).full;
+	
+	swOutputLinksOut(0).data <= swInputLinksIn(1).data;
+	swOutputLinksOut(0).writeEnable <= not swInputLinksIn(1).empty;
+	swInputLinksOut(1).readEnable <= not swOutputLinksIn(0).full;
+	
+	swOutputLinksOut(2).data <= swInputLinksIn(2).data;
+	swOutputLinksOut(2).writeEnable <= not swInputLinksIn(2).empty;
+	swInputLinksOut(2).readEnable <= not swOutputLinksIn(2).full;
+	
+	swOutputLinksOut(3).data <= swInputLinksIn(3).data;
+	swOutputLinksOut(3).writeEnable <= not swInputLinksIn(3).empty;
+	swInputLinksOut(3).readEnable <= not swOutputLinksIn(3).full;
+	
+	swOutputLinksOut(4).data <= swInputLinksIn(4).data;
+	swOutputLinksOut(4).writeEnable <= not swInputLinksIn(4).empty;
+	swInputLinksOut(4).readEnable <= not swOutputLinksIn(4).full;
+	
+	swOutputLinksOut(5).data <= swInputLinksIn(5).data;
+	swOutputLinksOut(5).writeEnable <= not swInputLinksIn(5).empty;
+	swInputLinksOut(5).readEnable <= not swOutputLinksIn(5).full;
+	
+	
+--	sw : switch
+--		generic map(
+--			globalAddress => globalAddr
+--		)
+--		port map(
+--			clk				=> clk125,
+--			reset			=> reset,
+--			inputLinksIn	=> swInputLinksIn,
+--			inputLinksOut	=> swInputLinksOut,
+--			outputLinksIn	=> swOutputLinksIn,
+--			outputLinksOut	=> swOutputLinksOut
+--		);
 	
 end architecture rtl;

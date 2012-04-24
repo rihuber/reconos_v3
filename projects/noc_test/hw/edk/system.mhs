@@ -288,11 +288,9 @@ BEGIN xps_timer
 	PORT Interrupt = xps_timer_0_Interrupt
 END
 
-BEGIN hwt_functional_block
-	PARAMETER INSTANCE = hwt_functional_block_0
-	PARAMETER HW_VER = v1.00.b
-	PARAMETER resetWithToken = 1
-	PARAMETER headerValue = 0b00000000
+BEGIN ana_hwt_hw2sw
+	PARAMETER INSTANCE = ana_hwt_hw2sw_0
+	PARAMETER HW_VER = v1.00.a
 	BUS_INTERFACE OS_SFSL = fsl_v20_0b
 	BUS_INTERFACE OS_MFSL = fsl_v20_0a
 	BUS_INTERFACE SFIFO32 = fifo32_0b_sfifo32
@@ -300,14 +298,11 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_0_downstream0
  	BUS_INTERFACE upstream = noc_switch_0_upstream0
 	PORT Rst = proc_control_0_reset0
-	PORT led = led0
 END
 
-BEGIN hwt_functional_block
-	PARAMETER INSTANCE = hwt_functional_block_1
-	PARAMETER HW_VER = v1.00.b
-	PARAMETER resetWithToken = 0
-	PARAMETER headerValue = 0b00000010
+BEGIN ana_hwt_sw2hw
+	PARAMETER INSTANCE = ana_hwt_sw2hw_0
+	PARAMETER HW_VER = v1.00.a
 	BUS_INTERFACE OS_SFSL = fsl_v20_1b
 	BUS_INTERFACE OS_MFSL = fsl_v20_1a
 	BUS_INTERFACE SFIFO32 = fifo32_1b_sfifo32
@@ -315,7 +310,6 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_0_downstream1
  	BUS_INTERFACE upstream = noc_switch_0_upstream1
 	PORT Rst = proc_control_0_reset1
-	PORT led = led1
 END
 
 BEGIN hwt_functional_block
