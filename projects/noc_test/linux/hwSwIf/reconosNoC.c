@@ -154,6 +154,12 @@ int reconosNoCSendPacket(reconosNoC* nocPtr, reconosNoCPacket* packet)
 	if(!nocPtr || !packet)
 		return -EINVAL;
 
+	if(!packet->payloadLength)
+		return -EINVAL;
+
+	if(!packet->payload)
+		return -EINVAL;
+
 	reconosNoCsw2hwInterface* interface = nocPtr->sw2hwInterface;
 
 	RECONOS_NOC_PRINT("reconosNoCSendPacket: Adding a new packet to the queue\n");
@@ -203,6 +209,9 @@ int createSw2HwInterface(reconosNoC* nocPtr)
 	errCode = sem_init(&interface->processOnePacketSem, 0, 0);
 	if(errCode)
 		return errCode;
+	errCode = sem_init(&interface->hardwareThreadReadySem, 0, 0);
+		if(errCode)
+			return errCode;
 	RECONOS_NOC_PRINT("SW -> HW: Initialized semaphores\n");
 
 	// init mbox put
@@ -269,6 +278,9 @@ int createHw2SwInterface(reconosNoC* nocPtr)
 	errCode = sem_init(&interface->packetsToProcessSem, 0, 0);
 	if(errCode)
 		return errCode;
+	errCode = sem_init(&interface->hardwareThreadReadySem, 0, 0);
+			if(errCode)
+				return errCode;
 	RECONOS_NOC_PRINT("HW -> SW: Initialized semaphores\n");
 
 	// init mbox put
@@ -293,8 +305,8 @@ int createHw2SwInterface(reconosNoC* nocPtr)
 	RECONOS_NOC_PRINT("HW -> SW: Hardware thread started\n");
 
 	// tell the hardware thread the base address of the ring buffer
-	//mbox_put(&interface->mb_put, (uint32)(interface->ringBufferBaseAddr));
-	//RECONOS_NOC_PRINT("HW -> SW: Initialized ring buffer base address in hardware thread\n");
+	mbox_put(&interface->mb_put, (uint32)(interface->ringBufferBaseAddr));
+	RECONOS_NOC_PRINT("SW -> HW: Initialized ring buffer base address in hardware thread\n");
 
 	// start the software threads
 	errCode = pthread_create(&interface->pointerExchangeThread, NULL, hw2swPointerExchangeThreadMain, nocPtr);
@@ -440,7 +452,7 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 	uint32_t writeOffset = interface->writeOffset;
 
 	// write the packetLength
-	uint32_t packetLength = newPacket->payloadLength + HEADER_SIZE -1;
+	uint32_t packetLength = newPacket->payloadLength + HEADER_SIZE;
 	sw2hwPacketProcessingThreadWriteIntegerToCharArray(ringBuffer, packetLength, writeOffset, &writeOffset);
 
 	// write header byte 1
@@ -476,6 +488,10 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 		memcpy(ringBuffer, &newPacket->payload[lengthPart1], lengthPart2);
 		writeOffset = lengthPart2;
 	}
+
+	// align the write offset with the beginning of the next word
+	while(writeOffset % 4 != 0)
+		writeOffset = (writeOffset + 1) % RING_BUFFER_SIZE;
 
 	interface->writeOffset = writeOffset;
 
@@ -587,10 +603,7 @@ void* sw2hwPointerExchangeThreadMain(void* arg)
 		interface->writePointerDirty = 0;
 
 		// fetch the current write offset (cast from byte to word offset)
-		interface->hwWriteOffset = interface->writeOffset;
-		while(interface->hwWriteOffset % 4 != 0)
-			interface->hwWriteOffset++;
-		interface->hwWriteOffset = interface->hwWriteOffset/4;
+		interface->hwWriteOffset = interface->writeOffset/4;
 		RECONOS_NOC_PRINT("SW -> HW interface (pointerExchangeThread): release pointer mutex\n");
 		pthread_mutex_unlock(&interface->pointersMutex);
 

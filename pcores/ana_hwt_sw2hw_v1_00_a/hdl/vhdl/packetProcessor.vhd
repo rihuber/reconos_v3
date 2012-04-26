@@ -75,7 +75,7 @@ begin
 	begin
 		remainingPacketLength_n <= remainingPacketLength_p;
 		if state_p = STATE_READING_PACKET_LENGTH then
-			remainingPacketLength_n <= unsigned(ramData);
+			remainingPacketLength_n <= unsigned(ramData)-1;
 		elsif state_p = STATE_PACKET_TRANSFER then
 			if upstreamFull = '0' then
 				remainingPacketLength_n <= remainingPacketLength_p-1;

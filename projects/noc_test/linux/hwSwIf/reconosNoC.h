@@ -34,7 +34,7 @@ typedef struct reconosNoCsw2hwInterface{
 	pthread_t packetProcessingThread, timerThread, pointerExchangeThread, threadControlThread;
 	pthread_mutex_t timerMutex, pointersMutex;
 	pthread_cond_t offsetUpdateCond, startTimerCond, abortTimerCond, exchangePointersCond;
-	sem_t processOnePacketSem;
+	sem_t processOnePacketSem, hardwareThreadReadySem;
 	char startTimer, timerRunning;
 	packetList packetsToProcess;
 	pthread_mutex_t packetListManipulateMutex;
@@ -50,7 +50,7 @@ typedef struct reconosNoChw2swInterface{
 	uint32_t writeOffset;
 	pthread_t packetProcessingThread, pointerExchangeThread, threadControlThread;
 	pthread_mutex_t timerMutex, pointersMutex;
-	sem_t packetsToProcessSem;
+	sem_t packetsToProcessSem, hardwareThreadReadySem;
 	char startTimer, timerRunning;
 	packetList packetsToProcess;
 }reconosNoChw2swInterface;
