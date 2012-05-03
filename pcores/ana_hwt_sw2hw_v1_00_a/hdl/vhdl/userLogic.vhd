@@ -9,7 +9,8 @@ library ana_hwt_sw2hw_v1_00_a;
 
 entity userLogic is
 	generic(
-		C_LOCAL_RAM_ADDRESS_WIDTH : integer
+		C_LOCAL_RAM_SIZE_IN_WORDS : integer:=16;
+		C_LOCAL_RAM_ADDRESS_WIDTH : integer:=4
 	);
 	port(
 		clk						: in  std_logic;
@@ -46,7 +47,7 @@ begin
 	localRAMCtr: entity ana_hwt_sw2hw_v1_00_a.localRAMCtr
 		generic map(
 			C_LOCAL_RAM_ADD_WIDTH 	=> C_LOCAL_RAM_ADDRESS_WIDTH,
-			C_RING_BUFFER_WORDS		=> sw2hwRamSize/4
+			C_RING_BUFFER_WORDS		=> C_LOCAL_RAM_SIZE_IN_WORDS
 		)
 		port map(
 			clk 		=> clk,

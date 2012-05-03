@@ -47,13 +47,13 @@ begin
 	upstreamData(dataWidth) <= '1' when remainingPacketLength_p = (31 downto 0 => '0') else '0';
 	upstreamWriteEnable <= '1' when state_p = STATE_PACKET_TRANSFER else '0';
 
-	nomem_readEnable : process(state_p, byteCounter_p, remainingPacketLength_p) is
+	nomem_readEnable : process(state_p, byteCounter_p, remainingPacketLength_p, upstreamFull) is
 	begin
 		readEnable <= '0';
 		if state_p = STATE_READING_PACKET_LENGTH then
 			readEnable <= '1';
 		elsif state_p = STATE_PACKET_TRANSFER then
-			if byteCounter_p = (1 downto 0 => '0') or remainingPacketLength_p = (31 downto 0 => '0') then
+			if (byteCounter_p = (1 downto 0 => '0') or remainingPacketLength_p = (31 downto 0 => '0')) and upstreamFull = '0' then
 				readEnable <= '1';
 			end if;
 		end if; 
@@ -71,7 +71,7 @@ begin
 		end if;
 	end process byteCounter;
 
-	remainingPacketLength : process(state_p, remainingPacketLength_p, upstreamFull) is
+	remainingPacketLength : process(state_p, remainingPacketLength_p, upstreamFull, ramData) is
 	begin
 		remainingPacketLength_n <= remainingPacketLength_p;
 		if state_p = STATE_READING_PACKET_LENGTH then
@@ -83,7 +83,7 @@ begin
 		end if;
 	end process remainingPacketLength;
 
-	nomem_nextState : process(state_p, packetAvailable, remainingPacketLength_p) is
+	nomem_nextState : process(state_p, packetAvailable, remainingPacketLength_p, upstreamFull) is
 	begin
 		state_n <= state_p;
 		case state_p is
@@ -96,7 +96,7 @@ begin
 				state_n <= STATE_PACKET_TRANSFER;
 				
 			when STATE_PACKET_TRANSFER =>
-				if remainingPacketLength_p = (31 downto 0 => '0') then
+				if remainingPacketLength_p = (31 downto 0 => '0') and upstreamFull = '0'  then
 					state_n <= STATE_IDLE;
 				end if;
 		end case;

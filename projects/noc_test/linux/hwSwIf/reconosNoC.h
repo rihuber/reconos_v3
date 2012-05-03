@@ -2,7 +2,7 @@
 #define RECONOS_NOC_H
 
 // print verbose debug output
-#define RECONOS_NOC_VERBOSE
+//#define RECONOS_NOC_VERBOSE
 
 #include <stdint.h>
 #include "reconos.h"
@@ -28,14 +28,14 @@ typedef struct reconosNoCsw2hwInterface{
 	struct mbox mb_put;
 	struct mbox mb_get;
 	char* ringBufferBaseAddr;
-	uint32_t readOffset;
-	uint32_t writeOffset, hwWriteOffset;
-	char writePointerDirty;
+	volatile uint32_t readOffset;
+	volatile uint32_t writeOffset, hwWriteOffset;
+	volatile char writePointerDirty;
 	pthread_t packetProcessingThread, timerThread, pointerExchangeThread, threadControlThread;
 	pthread_mutex_t timerMutex, pointersMutex;
 	pthread_cond_t offsetUpdateCond, startTimerCond, abortTimerCond, exchangePointersCond;
 	sem_t processOnePacketSem, hardwareThreadReadySem;
-	char startTimer, timerRunning;
+	volatile char startTimer, timerRunning;
 	packetList packetsToProcess;
 	pthread_mutex_t packetListManipulateMutex;
 }reconosNoCsw2hwInterface;
@@ -63,7 +63,7 @@ typedef struct reconosNoC{
 }reconosNoC;
 
 // the number of messages that fit in the message boxes
-#define MBOX_SIZE 4
+#define MBOX_SIZE 64
 
 // the size of the ring buffer in bytes
 #define RING_BUFFER_SIZE 64
@@ -74,16 +74,19 @@ typedef struct reconosNoC{
 // the number of bytes of the NoC header
 #define HEADER_SIZE 10
 
+#define MAXIMUM_PAYLOAD_SIZE 5
+
 // if after writing a packet to the ringbuffer the amount of free space
 // in the ringbuffer is below this threshold, a write pointer exchange
 // is delegated
-#define ALMOST_FULL_TRESHOLD 20
+#define ALMOST_FULL_TRESHOLD MAXIMUM_PAYLOAD_SIZE + HEADER_SIZE + 4 + 8
+//MAXIMUM_PAYLOAD_SIZE + HEADER_SIZE + 8
 
 // a write pointer exchange is delegated if no write pointer exchange
 // is yet delegated after this amount of time after a packet has been
 // written to the ringbuffer
 #define TIMEOUT_DURATION_MICROSEC 0
-#define TIMEOUT_DURATION_SEC 10
+#define TIMEOUT_DURATION_SEC 15
 
 // header bitmasks
 #define GLOBAL_ADDR_MASK 15

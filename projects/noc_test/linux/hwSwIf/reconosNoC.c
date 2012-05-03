@@ -19,7 +19,8 @@ void* threadControlThreadMain(void*);
 // called by all sw threads on error exit
 void basicThreadCleanup(void* arg);
 
-
+// ceil a byte address to the start of the next word
+uint32_t ceilToWordAddress(uint32_t byteAddress);
 
 
 ////////////////////////////////////////////////////////////
@@ -359,7 +360,7 @@ void* sw2hwPacketProcessingThreadMain(void* arg)
 		RECONOS_NOC_PRINT("SW -> HW interface (packetProcessingThread): fetched packet from queue\n");
 
 		// verify that there is enough space in the ring buffer to write the new packet
-		if(!sw2hwPacketProcessingThreadEnoughSpaceForPacket(interface, newPacket))
+		while(!sw2hwPacketProcessingThreadEnoughSpaceForPacket(interface, newPacket))
 		{
 			RECONOS_NOC_PRINT("SW -> HW interface (packetProcessingThread): not enough space in the ring buffer for the packet, waiting for offset update signal\n");
 			pthread_cond_wait(&interface->offsetUpdateCond, &interface->pointersMutex);
@@ -372,7 +373,7 @@ void* sw2hwPacketProcessingThreadMain(void* arg)
 		if(errCode)
 			pthread_exit((int*)errCode);
 		RECONOS_NOC_PRINT("SW -> HW interface (packetProcessingThread): written packet into ring buffer\n");
-		RECONOS_NOC_PRINT_RINGBUFFER_DUMP(0, interface);
+		RECONOS_NOC_PRINT_RINGBUFFER_DUMP(1, interface);
 
 		// if we need to immediately send the write pointer to the hardware thread
 		if(newPacket->latencyCritical || sw2hwPacketProcessingThreadIsAlmostFull(interface))
@@ -428,9 +429,11 @@ void* sw2hwPacketProcessingThreadMain(void* arg)
 
 int sw2hwPacketProcessingThreadEnoughSpaceForPacket(reconosNoCsw2hwInterface* interface, reconosNoCPacket* newPacket)
 {
-	int freeSpace = (RING_BUFFER_SIZE + interface->readOffset - interface->writeOffset -1) % RING_BUFFER_SIZE;
+	int freeSpace = ((RING_BUFFER_SIZE + interface->readOffset - interface->writeOffset -1) % RING_BUFFER_SIZE)-8;
+	int packetSize = ceilToWordAddress(newPacket->payloadLength + HEADER_SIZE + 4);
+	//printf("free space: %i, packet size: %i\n", freeSpace, packetSize);
 
-	if(freeSpace >= (newPacket->payloadLength + HEADER_SIZE + 4))
+	if(freeSpace > packetSize)
 		return 1;
 
 	return 0;
@@ -438,7 +441,8 @@ int sw2hwPacketProcessingThreadEnoughSpaceForPacket(reconosNoCsw2hwInterface* in
 
 int sw2hwPacketProcessingThreadIsAlmostFull(reconosNoCsw2hwInterface* interface)
 {
-	int freeSpace = (RING_BUFFER_SIZE + interface->hwWriteOffset - interface->writeOffset -1) % RING_BUFFER_SIZE;
+	int hwWriteOffsetBytes = interface->hwWriteOffset*4;
+	int freeSpace = (RING_BUFFER_SIZE + hwWriteOffsetBytes - interface->writeOffset -1) % RING_BUFFER_SIZE;
 
 	if(freeSpace >= ALMOST_FULL_TRESHOLD)
 		return 0;
@@ -478,7 +482,7 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 	if(writeOffset + newPacket->payloadLength <= RING_BUFFER_SIZE)
 	{
 		memcpy(&ringBuffer[writeOffset], newPacket->payload, newPacket->payloadLength);
-		writeOffset += newPacket->payloadLength;
+		writeOffset = (writeOffset + newPacket->payloadLength) % RING_BUFFER_SIZE;
 	}
 	else
 	{
@@ -486,13 +490,11 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 		uint32_t lengthPart2 = newPacket->payloadLength - lengthPart1;
 		memcpy(&ringBuffer[writeOffset], newPacket->payload, lengthPart1);
 		memcpy(ringBuffer, &newPacket->payload[lengthPart1], lengthPart2);
-		writeOffset = lengthPart2;
+		writeOffset = lengthPart2 % RING_BUFFER_SIZE;
 	}
 
 	// align the write offset with the beginning of the next word
-	while(writeOffset % 4 != 0)
-		writeOffset = (writeOffset + 1) % RING_BUFFER_SIZE;
-
+	writeOffset = ceilToWordAddress(writeOffset) % RING_BUFFER_SIZE;
 	interface->writeOffset = writeOffset;
 
 	return 0;
@@ -620,7 +622,7 @@ void* sw2hwPointerExchangeThreadMain(void* arg)
 		RECONOS_NOC_PRINT("SW -> HW interface (pointerExchangeThread): attempting to lock pointer mutex\n");
 		pthread_mutex_lock(&interface->pointersMutex);
 		RECONOS_NOC_PRINT("SW -> HW interface (pointerExchangeThread): attempting to lock pointer mutex ...done!\n");
-		interface->readOffset = hwReadOffset;
+		interface->readOffset = hwReadOffset*4;
 		RECONOS_NOC_PRINT("SW -> HW interface (pointerExchangeThread): signaling that the read offset has changed\n");
 		pthread_cond_signal(&interface->offsetUpdateCond);
 	}
@@ -679,11 +681,22 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 	reconosNoChw2swInterface* interface = nocPtr->hw2swInterface;
 	pthread_cleanup_push(basicThreadCleanup, nocPtr);
 
+	int i;
+	for(i=HEADER_SIZE; i<HEADER_SIZE+MAXIMUM_PAYLOAD_SIZE; i++)
+	{
+		uint32_t currentByte;
+		do{
+			currentByte = mbox_get(&interface->mb_get);
+		}
+		while(currentByte != (0x100 | i));
+		printf("Completely received packet: %x\n", currentByte);
+		fflush(stdout);
+	}
+	printf("All packets correctly received\n");
+
 	while(1)
 	{
-		RECONOS_NOC_PRINT("HW -> SW interface (pointerExchangeThread): waiting for the hardware to send new pointer\n");
-		uint32_t msg = mbox_get(&interface->mb_get);
-		RECONOS_NOC_PRINT_INT("HW -> SW interface (pointerExchangeThread): received message from hardware: %x\n", msg);
+		// do nothing
 	}
 
 	// never reached
@@ -691,6 +704,14 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 	return 0;
 }
 
+
+uint32_t ceilToWordAddress(uint32_t byteAddress)
+{
+	uint32_t result = byteAddress;
+	while(result%4 != 0)
+		result = result + 1;
+	return result;
+}
 
 
 

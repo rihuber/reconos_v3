@@ -11,7 +11,7 @@ entity localRAMCtr is
 		clk 		: in std_logic;
 		reset 		: in std_logic;
 		
-		readEnable	: in  std_logic;
+		readEnable	: in std_logic;
 		dout		: out std_logic_vector(31 downto 0);
 		
 		ramAddr		: out std_logic_vector(C_LOCAL_RAM_ADD_WIDTH-1 downto 0);
@@ -23,15 +23,14 @@ architecture rtl of localRAMCtr is
 	
 	signal ramAddr_n, ramAddr_p : std_logic_vector(C_LOCAL_RAM_ADD_WIDTH-1 downto 0);
 	
-	constant maxAddr : std_logic_vector := std_logic_vector(to_unsigned(C_RING_BUFFER_WORDS, C_LOCAL_RAM_ADD_WIDTH));
+	constant maxAddr : std_logic_vector(C_LOCAL_RAM_ADD_WIDTH-1 downto 0) := std_logic_vector(to_unsigned(C_RING_BUFFER_WORDS-1, C_LOCAL_RAM_ADD_WIDTH));
 	
 	function incAddr (addr : std_logic_vector(C_LOCAL_RAM_ADD_WIDTH-1 downto 0)) return std_logic_vector is
 		variable result : std_logic_vector(C_LOCAL_RAM_ADD_WIDTH-1 downto 0);
 	begin
+		result := std_logic_vector(unsigned(addr)+1);
 		if addr = maxAddr then
-			result := (others => '0');
-		else
-			result := std_logic_vector(unsigned(addr)+1);
+			result := (others => '0');	
 		end if;
 		return result;
 	end function incAddr;
