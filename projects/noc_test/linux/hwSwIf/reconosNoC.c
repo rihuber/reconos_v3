@@ -12,6 +12,9 @@
 
 #include "reconosNoC.h"
 
+#include "packetList.h"
+#include "bytePacket.h"
+
 
 // threadControlThread
 void* threadControlThreadMain(void*);
@@ -55,6 +58,10 @@ int createHw2SwInterface(reconosNoC* nocPtr);
 
 // pointerExchangeThread
 void* hw2swPointerExchangeThreadMain(void*);
+int hw2swPointerExchangeThreadDecodePacket(char* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket);
+
+// packetProcessingThread
+void* hw2swPacketProcessingThreadMain(void*);
 
 
 ////////////////////////////////////////////////////////////
@@ -280,9 +287,17 @@ int createHw2SwInterface(reconosNoC* nocPtr)
 	if(errCode)
 		return errCode;
 	errCode = sem_init(&interface->hardwareThreadReadySem, 0, 0);
-			if(errCode)
-				return errCode;
+	if(errCode)
+		return errCode;
 	RECONOS_NOC_PRINT("HW -> SW: Initialized semaphores\n");
+
+	// init the mutexes
+	pthread_mutex_init(&interface->packetHandlerListMutex, NULL);
+	pthread_mutex_init(&interface->packetListManipulateMutex, NULL);
+	RECONOS_NOC_PRINT("SW -> HW: Initialized mutexes\n");
+
+	// init the packet handler list
+	interface->packetHandlerListHead = NULL;
 
 	// init mbox put
 	errCode = mbox_init(&interface->mb_put, MBOX_SIZE);
@@ -307,13 +322,17 @@ int createHw2SwInterface(reconosNoC* nocPtr)
 
 	// tell the hardware thread the base address of the ring buffer
 	mbox_put(&interface->mb_put, (uint32)(interface->ringBufferBaseAddr));
-	RECONOS_NOC_PRINT("SW -> HW: Initialized ring buffer base address in hardware thread\n");
+	RECONOS_NOC_PRINT("HW -> HW: Initialized ring buffer base address in hardware thread\n");
 
 	// start the software threads
 	errCode = pthread_create(&interface->pointerExchangeThread, NULL, hw2swPointerExchangeThreadMain, nocPtr);
 	if(errCode)
 		return errCode;
 	RECONOS_NOC_PRINT("HW -> SW: pointer exchange thread started\n");
+	errCode = pthread_create(&interface->packetProcessingThread, NULL, hw2swPacketProcessingThreadMain, nocPtr);
+	if(errCode)
+		return errCode;
+	RECONOS_NOC_PRINT("HW -> SW: packet processing thread thread started\n");
 
 	return 0;
 }
@@ -681,27 +700,140 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 	reconosNoChw2swInterface* interface = nocPtr->hw2swInterface;
 	pthread_cleanup_push(basicThreadCleanup, nocPtr);
 
-	int i;
-	for(i=HEADER_SIZE; i<HEADER_SIZE+MAXIMUM_PAYLOAD_SIZE; i++)
+	while(1)
 	{
+		// Read the packet bytes
+		int packetSize = 0;
+		bytePacket* tail = NULL;
 		uint32_t currentByte;
 		do{
 			currentByte = mbox_get(&interface->mb_get);
-		}
-		while(currentByte != (0x100 | i));
-		printf("Completely received packet: %x\n", currentByte);
-		fflush(stdout);
-	}
-	printf("All packets correctly received\n");
+			bytePacket* newBytePacketElement = malloc(sizeof(bytePacket));
+			newBytePacketElement->value = (char)currentByte;
+			newBytePacketElement->next = tail;
+			tail = newBytePacketElement;
+			packetSize++;
+		} while((currentByte & 0x100) == 0);
 
-	while(1)
-	{
-		// do nothing
+		// create array from list
+		char* byteArray = malloc(packetSize);
+		int i;
+		for(i=packetSize-1; i>=0; i--)
+		{
+			bytePacket* current = tail;
+			byteArray[i] = current->value;
+			tail = current->next;
+			free(current);
+		}
+
+		// create a new packet with the read bytes
+		reconosNoCPacket* newPacket;
+		hw2swPointerExchangeThreadDecodePacket(byteArray, packetSize, &newPacket);
+		free(byteArray);
+
+		// add the new packet to the 'packets to process' list
+		pthread_mutex_lock(&interface->packetListManipulateMutex);
+		packetListAdd(&interface->packetsToProcess, newPacket);
+		pthread_mutex_unlock(&interface->packetListManipulateMutex);
+		sem_post(&interface->packetsToProcessSem);
 	}
+
+//	int i;
+//	for(i=HEADER_SIZE; i<HEADER_SIZE+MAXIMUM_PAYLOAD_SIZE; i++)
+//	{
+//		uint32_t currentByte;
+//		do{
+//			currentByte = mbox_get(&interface->mb_get);
+//		}
+//		while(currentByte != (0x100 | i));
+//		printf("Completely received packet: %x\n", currentByte);
+//		fflush(stdout);
+//	}
+//	printf("All packets correctly received\n");
+//
+//	while(1)
+//	{
+//		// do nothing
+//	}
 
 	// never reached
 	pthread_cleanup_pop(0);
 	return 0;
+}
+
+int hw2swPointerExchangeThreadDecodePacket(char* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket)
+{
+	reconosNoCPacket* newPacket = malloc(sizeof(reconosNoCPacket));
+	if(!newPacket)
+		return -ENOMEM;
+
+	// header byte 1
+	newPacket->hwAddrGlobal = (packetBytes[0] & GLOBAL_ADDR_MASK) >> GLOBAL_ADDR_OFFSET;
+	newPacket->hwAddrLocal = (packetBytes[0] & LOCAL_ADDR_MASK) >> LOCAL_ADDR_OFFSET;
+	newPacket->priority = (packetBytes[0] & PRIORITY_MASK) >> PRIORITY_OFFSET;
+
+	// header byte 2
+	newPacket->direction = (packetBytes[1] & DIRECTION_MASK) >> DIRECTION_OFFSET;
+	newPacket->latencyCritical = (packetBytes[1] & LATENCY_CRITICAL_MASK) >> LATENCY_CRITICAL_OFFSET;
+
+	// src IDP
+	newPacket->srcIdp = packetBytes[2];
+	int i;
+	for(i=1; i<4; i++)
+	{
+		newPacket->srcIdp = newPacket->srcIdp << 8;
+		newPacket->srcIdp |= packetBytes[i+2];
+	}
+
+	// dst IDP
+	newPacket->dstIdp = packetBytes[2];
+	for(i=1; i<4; i++)
+	{
+		newPacket->dstIdp = newPacket->dstIdp << 8;
+		newPacket->dstIdp |= packetBytes[i+2];
+	}
+
+	// payload
+	newPacket->payloadLength = packetLength - HEADER_SIZE;
+	newPacket->payload = malloc(newPacket->payloadLength);
+	memcpy(newPacket->payload, packetBytes+HEADER_SIZE, newPacket->payloadLength);
+
+	*decodedPacket = newPacket;
+
+	return 0;
+}
+
+void* hw2swPacketProcessingThreadMain(void* arg)
+{
+	int errCode;
+
+	reconosNoC* nocPtr = (reconosNoC*)arg;
+	reconosNoChw2swInterface* interface = nocPtr->hw2swInterface;
+
+	while(1)
+	{
+		sem_wait(&interface->packetsToProcessSem);
+
+		reconosNoCPacket* currentPacket;
+		pthread_mutex_lock(&interface->packetListManipulateMutex);
+		errCode = packetListPoll(&interface->packetsToProcess, &currentPacket);
+		if(errCode)
+			pthread_exit((int*)errCode);
+		pthread_mutex_unlock(&interface->packetListManipulateMutex);
+
+		pthread_mutex_lock(&interface->packetHandlerListMutex);
+		packetHandlerListElement* head = interface->packetHandlerListHead;
+		while(head)
+		{
+			errCode = head->handler(currentPacket);
+			if(errCode)
+				pthread_exit((int*)errCode);
+			head = head->next;
+		}
+		pthread_mutex_unlock(&interface->packetHandlerListMutex);
+	}
+
+	return 0; // never reached
 }
 
 
@@ -712,6 +844,24 @@ uint32_t ceilToWordAddress(uint32_t byteAddress)
 		result = result + 1;
 	return result;
 }
+
+int reconosNoCRegisterPacketReceptionHandler(reconosNoC* nocPtr, int (*newHandler)(reconosNoCPacket*))
+{
+	packetHandlerListElement* newElement = malloc(sizeof(packetHandlerListElement));
+	if(!newElement)
+		return -ENOMEM;
+	newElement->handler = newHandler;
+
+	pthread_mutex_lock(&nocPtr->hw2swInterface->packetHandlerListMutex);
+	newElement->next = nocPtr->hw2swInterface->packetHandlerListHead;
+	nocPtr->hw2swInterface->packetHandlerListHead = newElement;
+	pthread_mutex_unlock(&nocPtr->hw2swInterface->packetHandlerListMutex);
+
+	return 0;
+}
+
+
+
 
 
 

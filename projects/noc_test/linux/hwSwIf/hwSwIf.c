@@ -25,11 +25,11 @@ reconosNoCPacket* createDummyPacket(uint32_t payloadLength, uint32_t startValue)
 	return result;
 }
 
-//int myPacketReceptionHandler(reconosNoCPacket* receivedPacket)
-//{
-//	printf("Received Packet (size: %i Bytes)", receivedPacket->payloadLength);
-//	return 0;
-//}
+int myPacketReceptionHandler(reconosNoCPacket* receivedPacket)
+{
+	printf("Received Packet (size: %i Bytes)\n", receivedPacket->payloadLength);
+	return 0;
+}
 
 int main(int argc, char ** argv)
 {
@@ -53,7 +53,7 @@ int main(int argc, char ** argv)
 	}
 
 	// register a packet reception handler
-	//reconosNoCRegisterPacketReceptionHandler(nocPtr, myPacketReceptionHandler);
+	reconosNoCRegisterPacketReceptionHandler(nocPtr, myPacketReceptionHandler);
 
 	int i;
 	for(i=1; i<=MAXIMUM_PAYLOAD_SIZE; i++)
@@ -66,7 +66,7 @@ int main(int argc, char ** argv)
 
 		sleep(5);
 	}
-	printf("done");
+	printf("%i packets sent!\n", MAXIMUM_PAYLOAD_SIZE);
 
 //	printf("Creating a dummy packet...\n");
 //	dummyPacket = createDummyPacket(5, 0x10);

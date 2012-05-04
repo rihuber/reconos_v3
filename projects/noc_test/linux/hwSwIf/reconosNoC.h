@@ -21,6 +21,7 @@ typedef struct reconosNoCPacket{
 }reconosNoCPacket;
 
 #include "packetList.h"
+#include "packetHandlerList.h"
 
 typedef struct reconosNoCsw2hwInterface{
 	struct reconos_hwt hwt;
@@ -49,10 +50,11 @@ typedef struct reconosNoChw2swInterface{
 	uint32_t readOffset;
 	uint32_t writeOffset;
 	pthread_t packetProcessingThread, pointerExchangeThread, threadControlThread;
-	pthread_mutex_t timerMutex, pointersMutex;
+	pthread_mutex_t packetHandlerListMutex, packetListManipulateMutex;
 	sem_t packetsToProcessSem, hardwareThreadReadySem;
 	char startTimer, timerRunning;
 	packetList packetsToProcess;
+	packetHandlerListElement* packetHandlerListHead;
 }reconosNoChw2swInterface;
 
 typedef struct reconosNoC{
