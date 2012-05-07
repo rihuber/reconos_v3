@@ -149,14 +149,14 @@ int reconosNoCInit(reconosNoC** ptrToNocPtr)
 	errCode = createSw2HwInterface(nocPtr);
 	if(errCode)
 	{
-		sem_post(nocPtr->killThreadsSem);
+		sem_post(&nocPtr->killThreadsSem);
 		return errCode;
 	}
 
 	errCode = createHw2SwInterface(nocPtr);
 	if(errCode)
 	{
-		sem_post(nocPtr->killThreadsSem);
+		sem_post(&nocPtr->killThreadsSem);
 		return errCode;
 	}
 

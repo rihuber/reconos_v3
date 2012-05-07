@@ -312,11 +312,9 @@ BEGIN ana_hwt_sw2hw
 	PORT Rst = proc_control_0_reset1
 END
 
-BEGIN hwt_functional_block
-	PARAMETER INSTANCE = hwt_functional_block_2
-	PARAMETER HW_VER = v1.00.b
-	PARAMETER resetWithToken = 0
-	PARAMETER headerValue = 0b00000011
+BEGIN ana_hwt_checksum
+	PARAMETER INSTANCE = ana_hwt_checksum_0
+	PARAMETER HW_VER = v1.00.a
 	BUS_INTERFACE OS_SFSL = fsl_v20_2b
 	BUS_INTERFACE OS_MFSL = fsl_v20_2a
 	BUS_INTERFACE SFIFO32 = fifo32_2b_sfifo32
@@ -324,7 +322,6 @@ BEGIN hwt_functional_block
 	BUS_INTERFACE downstream = noc_switch_1_downstream0
  	BUS_INTERFACE upstream = noc_switch_1_upstream0
 	PORT Rst = proc_control_0_reset2
-	PORT led = led2
 END
 
 BEGIN hwt_functional_block
