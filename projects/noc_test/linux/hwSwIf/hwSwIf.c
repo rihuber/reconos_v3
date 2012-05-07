@@ -68,29 +68,13 @@ int main(int argc, char ** argv)
 	}
 	printf("%i packets sent!\n", MAXIMUM_PAYLOAD_SIZE);
 
-//	printf("Creating a dummy packet...\n");
-//	dummyPacket = createDummyPacket(5, 0x10);
-
-//	printf("Creating a dummy packet... done!\n");
-//	errCode = reconosNoCSendPacket(nocPtr, dummyPacket);
-//	if(errCode)
-//		printf("Error when sending packet! Error code: %i\n", errCode);
-
-//	printf("Creating a dummy packet...\n");
-//		dummyPacket = createDummyPacket(5);
-//		printf("Creating a dummy packet... done!\n");
-//		errCode = reconosNoCSendPacket(nocPtr, dummyPacket);
-//		if(errCode)
-//			printf("Error when sending packet! Error code: %i\n", errCode);
-
 	while(1)
 	{
 		/* ... do a lot of networking ... */
 	}
 
-//	errCode = reconosNoCStop(nocPtr);
-//	if(errCode)
-//		printf("Error when stopping NoC! Error code: %i", errCode);
-
-	free(nocPtr);
+	errCode = reconosNoCStop(nocPtr);
+	if(errCode)
+		printf("Error when stopping NoC! Error code: %i", errCode);
+	nocPtr = NULL;
 }

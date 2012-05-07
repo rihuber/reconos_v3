@@ -18,6 +18,8 @@
 
 // threadControlThread
 void* threadControlThreadMain(void*);
+void threadControlThreadTerminateHw2SwThreads(reconosNoChw2swInterface* interface);
+void threadControlThreadTerminateSw2HwThreads(reconosNoCsw2hwInterface* interface);
 
 // called by all sw threads on error exit
 void basicThreadCleanup(void* arg);
@@ -146,11 +148,17 @@ int reconosNoCInit(reconosNoC** ptrToNocPtr)
 
 	errCode = createSw2HwInterface(nocPtr);
 	if(errCode)
+	{
+		sem_post(nocPtr->killThreadsSem);
 		return errCode;
+	}
 
 	errCode = createHw2SwInterface(nocPtr);
 	if(errCode)
+	{
+		sem_post(nocPtr->killThreadsSem);
 		return errCode;
+	}
 
 	return 0;
 }
@@ -659,38 +667,73 @@ void basicThreadCleanup(void* arg)
 void* threadControlThreadMain(void* arg)
 {
 	reconosNoC* nocPtr = (reconosNoC*)arg;
-	reconosNoCsw2hwInterface* interface = nocPtr->sw2hwInterface;
 	sem_wait(&nocPtr->killThreadsSem);
+
+	threadControlThreadTerminateSw2HwThreads(nocPtr->sw2hwInterface);
+	threadControlThreadTerminateHw2SwThreads(nocPtr->hw2swInterface);
+
+	// free the ring buffers
+	if(nocPtr->sw2hwInterface->ringBufferBaseAddr)
+		free(nocPtr->sw2hwInterface->ringBufferBaseAddr);
+	if(nocPtr->hw2swInterface->ringBufferBaseAddr)
+	free(nocPtr->hw2swInterface->ringBufferBaseAddr);
+
+	// free the interfaces
+	if(nocPtr->sw2hwInterface)
+		free(nocPtr->sw2hwInterface);
+	if(nocPtr->hw2swInterface)
+		free(nocPtr->hw2swInterface);
+
+	if(nocPtr)
+		free(nocPtr);
+
+	return 0;
+}
+
+void threadControlThreadTerminateSw2HwThreads(reconosNoCsw2hwInterface* interface)
+{
+	if(!interface)
+		return;
+
 	pthread_cancel(interface->pointerExchangeThread);
 	pthread_cancel(interface->timerThread);
 	pthread_cancel(interface->packetProcessingThread);
 
 	int* retval;
 	pthread_join(interface->pointerExchangeThread, (void**)&retval);
-	if(retval == PTHREAD_CANCELED)	{
-		RECONOS_NOC_PRINT("pointerExchangeThread terminated due to cancelation\n");
-	}
-	else {
-		RECONOS_NOC_PRINT_INT("pointerExchangeThread terminated with error code %i\n", *retval);
+	if(retval != PTHREAD_CANCELED)	{
+		printf("SW -> HW interface: pointerExchangeThread terminated with error code %i\n", *retval);
 	}
 
 	pthread_join(interface->timerThread, (void**)&retval);
-	if(retval == PTHREAD_CANCELED)	{
-		RECONOS_NOC_PRINT("timerThread terminated due to cancelation\n");
-	}
-	else {
-		RECONOS_NOC_PRINT_INT("timerThread terminated with error code %i\n", *retval);
+	if(retval != PTHREAD_CANCELED)	{
+		printf("SW -> HW interface: timerThread terminated with error code %i\n", *retval);
 	}
 
 	pthread_join(interface->packetProcessingThread, (void**)&retval);
-	if(retval == PTHREAD_CANCELED)	{
-		RECONOS_NOC_PRINT("packetProcessingThread terminated due to cancelation\n");
+	if(retval != PTHREAD_CANCELED)	{
+		printf("SW -> HW interface: packetProcessingThread terminated with error code %i\n", *retval);
 	}
-	else {
-		RECONOS_NOC_PRINT_INT("packetProcessingThread terminated with error code %i\n", *retval);
+}
+
+void threadControlThreadTerminateHw2SwThreads(reconosNoChw2swInterface* interface)
+{
+	if(!interface)
+		return;
+
+	pthread_cancel(interface->pointerExchangeThread);
+	pthread_cancel(interface->packetProcessingThread);
+
+	int* retval;
+	pthread_join(interface->pointerExchangeThread, (void**)&retval);
+	if(retval != PTHREAD_CANCELED)	{
+		printf("HW -> SW interface: pointerExchangeThread terminated with error code %i\n", *retval);
 	}
 
-	return 0;
+	pthread_join(interface->packetProcessingThread, (void**)&retval);
+	if(retval != PTHREAD_CANCELED)	{
+		printf("HW -> SW interface: packetProcessingThread terminated with error code %i\n", *retval);
+	}
 }
 
 void* hw2swPointerExchangeThreadMain(void* arg)
@@ -702,6 +745,9 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 
 	while(1)
 	{
+		// ----------------------------------------------------------
+		// Start of temporary code
+
 		// Read the packet bytes
 		int packetSize = 0;
 		bytePacket* tail = NULL;
@@ -726,6 +772,9 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 			free(current);
 		}
 
+		// End of temporary code
+		// ----------------------------------------------------------
+
 		// create a new packet with the read bytes
 		reconosNoCPacket* newPacket;
 		hw2swPointerExchangeThreadDecodePacket(byteArray, packetSize, &newPacket);
@@ -737,24 +786,6 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 		pthread_mutex_unlock(&interface->packetListManipulateMutex);
 		sem_post(&interface->packetsToProcessSem);
 	}
-
-//	int i;
-//	for(i=HEADER_SIZE; i<HEADER_SIZE+MAXIMUM_PAYLOAD_SIZE; i++)
-//	{
-//		uint32_t currentByte;
-//		do{
-//			currentByte = mbox_get(&interface->mb_get);
-//		}
-//		while(currentByte != (0x100 | i));
-//		printf("Completely received packet: %x\n", currentByte);
-//		fflush(stdout);
-//	}
-//	printf("All packets correctly received\n");
-//
-//	while(1)
-//	{
-//		// do nothing
-//	}
 
 	// never reached
 	pthread_cleanup_pop(0);
@@ -809,6 +840,7 @@ void* hw2swPacketProcessingThreadMain(void* arg)
 
 	reconosNoC* nocPtr = (reconosNoC*)arg;
 	reconosNoChw2swInterface* interface = nocPtr->hw2swInterface;
+	pthread_cleanup_push(basicThreadCleanup, nocPtr);
 
 	while(1)
 	{
@@ -833,7 +865,9 @@ void* hw2swPacketProcessingThreadMain(void* arg)
 		pthread_mutex_unlock(&interface->packetHandlerListMutex);
 	}
 
-	return 0; // never reached
+	// never reached
+	pthread_cleanup_pop(0);
+	return 0;
 }
 
 
@@ -859,332 +893,3 @@ int reconosNoCRegisterPacketReceptionHandler(reconosNoC* nocPtr, int (*newHandle
 
 	return 0;
 }
-
-
-
-
-
-
-////////////////////////////////////////////////////////////
-//////// OLD !!!
-////////////////////////////////////////////////////////////
-//
-//typedef struct packetHandlerListHead{
-//	struct packetHandlerListHead* next;
-//	int (*packetHandler)(reconosNoCPacket*);
-//}packetHandlerListHead;
-//
-//typedef struct reconosNoCHwt{
-//	struct reconos_hwt hwt;
-//	struct reconos_resource res[2];
-//	struct mbox mb_put;
-//	struct mbox mb_get;
-//	char* ringBufferBaseAddr;
-//	int readOffset;
-//	int writeOffset;
-//	pthread_t putThread;
-//	pthread_t getThread;
-//	int putOffsetDirty;
-//	sem_t putOffsetDirtySemaphore;
-//	packetHandlerListHead* packetHandlers;
-//} reconosNoCHwt;
-//
-//typedef struct reconosNoCsw2hwInterface{
-//	struct reconos_hwt hwt;
-//	struct reconos_resource res[2];
-//	struct mbox mb_put;
-//	struct mbox mb_get;
-//	char* ringBufferBaseAddr;
-//	int readOffset, hwReadOffset;
-//	int writeOffset, hwWriteOffset;
-//	pthread_t packetProcessingThread, timerThread, pointerExchangeThread;
-//
-//}reconosNoCsw2hwInterface;
-//
-//typedef struct reconosNoC{
-//	reconosNoCsw2hwInterface* sw2hwInterface;
-//	reconosNoCHwt* hw2swInterface;
-//} reconosNoC;
-//
-//int initHardwareThreads(reconosNoC* nocPtr);
-//int initHardwareThread(reconosNoCHwt* nocHwt);
-//
-//void* getOffsetThreadMain(void*);
-//void* putOffsetThreadMain(void*);
-//
-//int handleNewPackets(reconosNoC*);
-//
-//typedef struct getOffsetThreadMainArgs{
-//	int* offset;
-//	struct mbox* mbox;
-//	int (*eventHandler)(reconosNoC*);
-//	reconosNoC* nocPtr;
-//}getOffsetThreadMainArgs;
-//
-//typedef struct putOffsetThreadMainArgs{
-//	int* offset;
-//	struct mbox* mbox;
-//	int* offsetDirty;
-//	sem_t* offsetDirtySemaphore;
-//}putOffsetThreadMainArgs;
-//
-//int reconosNoCInit(reconosNoC* nocPtr)
-//{
-//	int errCode;
-//
-//	// init the reconos hardware threads
-//	errCode = initHardwareThreads(nocPtr);
-//	if(errCode)
-//		return errCode;
-//
-//	// start offset read/write threads
-//	errCode = startOffsetThreads(nocPtr);
-//
-//	return 0;
-//}
-//
-//int initHardwareThreads(reconosNoC* nocPtr)
-//{
-//	int errCode;
-//
-//	// init HW->SW hardware thread
-//	errCode = initHardwareThread(nocPtr->hw2swInterface, 0);
-//	if(errCode)
-//		return errCode;
-//
-//	// init SW -> HW hardware thread
-//	errCode = initHardwareThread(nocPtr->sw2hwInterface, 1);
-//	if(errCode)
-//		return errCode;
-//
-//	return 0;
-//}
-//
-//int startOffsetThreads(reconosNoC* nocPtr)
-//{
-//	int errCode;
-//
-//	// start HW->SW write offset thread
-//	getOffsetThreadMainArgs* getArgs = malloc(sizeof(getOffsetThreadMainArgs));
-//	getArgs->mbox = &(nocPtr->hw2swInterface->mb_get);
-//	getArgs->offset = &(nocPtr->hw2swInterface->writeOffset);
-//	getArgs->nocPtr = nocPtr;
-//	getArgs->eventHandler = NULL;
-//	errCode = pthread_create(&(nocPtr->hw2swInterface->getThread), NULL, getOffsetThreadMain, getArgs);
-//	if(errCode)
-//		return errCode;
-//
-//	// start HW->SW read offset thread
-//	putOffsetThreadMainArgs* putArgs = malloc(sizeof(putOffsetThreadMainArgs));
-//	putArgs->mbox = &(nocPtr->hw2swInterface->mb_put);
-//	putArgs->offset = &(nocPtr->hw2swInterface->readOffset);
-//	putArgs->offsetDirty = 0;
-//	sem_init(&(nocPtr->hw2swInterface->putOffsetDirtySemaphore), 0, 1);
-//	errCode = pthread_create(&(nocPtr->hw2swInterface->putThread), NULL, putOffsetThreadMain, putArgs);
-//	if(errCode)
-//		return errCode;
-//
-//	// start SW->HW read offset thread
-//	getArgs = malloc(sizeof(getOffsetThreadMainArgs));
-//	getArgs->mbox = &(nocPtr->sw2hwInterface->mb_get);
-//	getArgs->offset = &(nocPtr->sw2hwInterface->readOffset);
-//	getArgs->nocPtr = nocPtr;
-//	getArgs->eventHandler = handleNewPackets;
-//	errCode = pthread_create(&(nocPtr->sw2hwInterface->getThread), NULL, getOffsetThreadMain, getArgs);
-//	if(errCode)
-//		return errCode;
-//
-//	// start SW->HW write offset thread
-//	putArgs = malloc(sizeof(putOffsetThreadMainArgs));
-//	putArgs->mbox = &(nocPtr->sw2hwInterface->mb_put);
-//	putArgs->offset = &(nocPtr->sw2hwInterface->writeOffset);
-//	putArgs->offsetDirty = 0;
-//	sem_init(&(nocPtr->sw2hwInterface->putOffsetDirtySemaphore), 0, 1);
-//	errCode = pthread_create(&(nocPtr->sw2hwInterface->putThread), NULL, putOffsetThreadMain, putArgs);
-//	if(errCode)
-//		return errCode;
-//
-//	return 0;
-//}
-//
-//int initHardwareThread(reconosNoCHwt* nocHwt, int slot)
-//{
-//	int errCode;
-//
-//	nocHwt = malloc(sizeof(reconosNoCHwt));
-//	if(!nocHwt)
-//		return -ENOMEM;
-//
-//	// init mbox (put)
-//	errCode = mbox_init(&nocHwt->mb_put, MBOX_SIZE);
-//	if(errCode)
-//		return errCode;
-//	nocHwt->res[0].type = RECONOS_TYPE_MBOX;
-//	nocHwt->res[0].ptr  = &nocHwt->mb_put;
-//
-//	// init mbox (get)
-//	errCode = mbox_init(&nocHwt->mb_get, MBOX_SIZE);
-//	if(errCode)
-//		return errCode;
-//	nocHwt->res[1].type = RECONOS_TYPE_MBOX;
-//	nocHwt->res[1].ptr  = &nocHwt->mb_get;
-//
-//	// start the thread
-//	reconos_hwt_setresources(&nocHwt->hwt, nocHwt->res, 2);
-//	reconos_hwt_create(&nocHwt->hwt, slot, NULL);
-//
-//	// allocate the ring buffer
-//	nocHwt->ringBufferBaseAddr = valloc(RING_BUFFER_SIZE);
-//
-//	// send the base address of the ring buffer to the HW thread
-//	mbox_put(&nocHwt->mb_put, nocHwt->ringBufferBaseAddr);
-//
-//	// initialize the read and write offset to zero
-//	nocHwt->readOffset = 0;
-//	nocHwt->writeOffset = 0;
-//
-//	return 0;
-//}
-//
-//void* getOffsetThreadMain(void* args)
-//{
-//	getOffsetThreadMainArgs* myArgs = (getOffsetThreadMainArgs*)args;
-//	int run = 1;
-//	while(run)
-//	{
-//		int msg = mbox_get(&myArgs->mbox);
-//		if(msg == MBOX_SIGNAL_THREAD_EXIT)
-//			run = 0;
-//		else
-//		{
-//			myArgs->offset = msg;
-//			if(myArgs->eventHandler != NULL)
-//			{
-//				int errCode = myArgs->eventHandler(myArgs->nocPtr);
-//				if(errCode)
-//					return(errCode);
-//			}
-//		}
-//	}
-//	free(myArgs);
-//	return 0;
-//}
-//
-//void* putOffsetThreadMain(void* args)
-//{
-//	putOffsetThreadMainArgs* myArgs = (putOffsetThreadMainArgs*)args;
-//
-//	int run = 1;
-//	while(run)
-//	{
-//		while(1)
-//		{
-//			// TODO: Add some more fancy decision mechanisms here
-//			sem_wait(myArgs->offsetDirtySemaphore);
-//			if(myArgs->offsetDirty)
-//			{
-//				myArgs->offsetDirty = 0;
-//				sem_post(myArgs->offsetDirtySemaphore);
-//				break;
-//			}
-//			sem_post(myArgs->offsetDirtySemaphore);
-//
-//			// sleep for 1 millisecond
-//			usleep(1000);
-//		}
-//		mbox_put(&myArgs->mbox, *(myArgs->offset));
-//		if(*(myArgs->offset) == MBOX_SIGNAL_THREAD_EXIT)
-//			run = 0;
-//	}
-//	free(myArgs);
-//	return 0;
-//}
-//
-//
-//
-//
-//
-/////////////////////////////////////////////////////////////////////
-////////	HANDLE THE ARRIVAL OF NEW PACKETS	///////////////////////
-/////////////////////////////////////////////////////////////////////
-//
-//int isNewPacketAvailable(reconosNoC* nocPtr);
-//reconosNoCPacket* decodeNextPacket(reconosNoC* nocPtr);
-//int notifyHandlers(reconosNoC* nocPtr, reconosNoCPacket* newPacket);
-//int handleNewPackets(reconosNoC* nocPtr);
-//
-//
-//
-//int handleNewPackets(reconosNoC* nocPtr)
-//{
-//	while(isNewPacketAvailable(nocPtr))
-//	{
-//		reconosNoCPacket* newPacket = decodeNextPacket(nocPtr);
-//		notifyHandlers(newPacket);
-//	}
-//	return 0;
-//}
-//
-//int notifyHandlers(reconosNoC* nocPtr, reconosNoCPacket* newPacket)
-//{
-//	packetHandlerListHead* listHead = nocPtr->hw2swInterface->packetHandlers;
-//	while(listHead != NULL)
-//	{
-//		int errCode = listHead->packetHandler(newPacket);
-//		if(errCode)
-//			return errCode;
-//		listHead = listHead->next;
-//	}
-//	return 0;
-//}
-//
-//int isNewPacketAvailable(reconosNoC* nocPtr)
-//{
-//	int readOffset = nocPtr->hw2swInterface->readOffset;
-//	int writeOffset = nocPtr->hw2swInterface->writeOffset;
-//	if(readOffset == writeOffset)
-//		return 0;
-//	return 1;
-//}
-//
-//reconosNoCPacket* decodeNextPacket(reconosNoC* nocPtr)
-//{
-//	reconosNoCPacket* newPacket = malloc(sizeof(reconosNoCPacket));
-//
-//	char* baseAddr = nocPtr->hw2swInterface->ringBufferBaseAddr;
-//	int readOffsetBase = nocPtr->hw2swInterface->readOffset;
-//
-//	int payloadLength = (int)(baseAddr[readOffsetBase]);
-//	payloadLength |= (int)(baseAddr[readOffsetBase+1]) << 8;
-//	payloadLength |= (int)(baseAddr[readOffsetBase+2]) << 16;
-//	payloadLength |= (int)(baseAddr[readOffsetBase+3]) << 24;
-//	newPacket->payloadLength = payloadLength;
-//
-//	char headerByte1 = baseAddr[readOffsetBase+4];
-//	newPacket->hwAddrGlobal = (int)((headerByte1 >> GLOBAL_ADDR_OFFSET) & GLOBAL_ADDR_MASK);
-//	newPacket->hwAddrLocal = (int)((headerByte1 >> LOCAL_ADDR_OFFSET) & LOCAL_ADDR_MASK);
-//	newPacket->priority = (int)((headerByte1 >> PRIORITY_OFFSET) & PRIORITY_MASK);
-//
-//	char headerByte2 = baseAddr[readOffsetBase+5];
-//	newPacket->direction = (int)((headerByte2 >> DIRECTION_OFFSET) & DIRECTION_MASK);
-//	newPacket->latencyCritical = (int)((headerByte2 >> LATENCY_CRITICAL_OFFSET) & LATENCY_CRITICAL_MASK);
-//
-//	int srcIdp = (int)(baseAddr[readOffsetBase+6]);
-//	srcIdp |= (int)(baseAddr[readOffsetBase+7]) << 8;
-//	srcIdp |= (int)(baseAddr[readOffsetBase+8]) << 16;
-//	srcIdp |= (int)(baseAddr[readOffsetBase+9]) << 24;
-//	newPacket->srcIdp = srcIdp;
-//
-//	int dstIdp = (int)(baseAddr[readOffsetBase+10]);
-//	dstIdp |= (int)(baseAddr[readOffsetBase+11]) << 8;
-//	dstIdp |= (int)(baseAddr[readOffsetBase+12]) << 16;
-//	dstIdp |= (int)(baseAddr[readOffsetBase+13]) << 24;
-//	newPacket->dstIdp = dstIdp;
-//
-//	newPacket->payload = malloc(payloadLength);
-//	memcyp(newPacket->payload, baseAddr+14, payloadLength);
-//
-//	return newPacket;
-//}
-//
-//
