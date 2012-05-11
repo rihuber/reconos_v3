@@ -99,7 +99,7 @@ begin
 		end if;
 	end process nomem_idpByteCounter;
 
-	nomem_nextState : process(state_p, downstreamEmpty, idpByteCounter_p, readEnable, downstreamData(dataWidth))
+	nomem_nextState : process(state_p, downstreamEmpty, idpByteCounter_p, readEnable, downstreamData)
 	begin
 		-- Default: keep current state
 		state_n <= state_p;
@@ -124,7 +124,11 @@ begin
 					
 				when STATE_START_PACKET_TRANSFER =>
 					if readEnable = '1' then
-						state_n <= STATE_PACKET_TRANSFER;
+						if downstreamData(dataWidth) = '1' then
+							state_n <= STATE_DECODE_HEADER_1;
+						else
+							state_n <= STATE_PACKET_TRANSFER;
+						end if;
 					end if;
 					
 				when STATE_PACKET_TRANSFER =>

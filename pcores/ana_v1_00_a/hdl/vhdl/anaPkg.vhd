@@ -2,6 +2,7 @@
 library IEEE;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.math_real.all;
 
 package anaPkg is
 
@@ -18,10 +19,10 @@ package anaPkg is
 	
 	function toLog2Ceil (x: integer) return integer;
 	
---	subtype idpByteCounter is unsigned(1 downto 0); 
---	constant idpByteCounterMax : idpByteCounter := (1 downto 0 => '1');
-	subtype idpByteCounter is unsigned(toLog2Ceil(idpBytes)-1 downto 0); 
-	constant idpByteCounterMax : idpByteCounter := to_unsigned(idpBytes-1, toLog2Ceil(idpBytes));
+	subtype idpByteCounter is unsigned(1 downto 0); 
+	constant idpByteCounterMax : idpByteCounter := (1 downto 0 => '1');
+--	subtype idpByteCounter is unsigned(toLog2Ceil(idpBytes)-1 downto 0); 
+--	constant idpByteCounterMax : idpByteCounter := to_unsigned(idpBytes-1, toLog2Ceil(idpBytes));
 	
 	-- The number of bits of the local address
 	constant localAddrWidth : integer := 2;
@@ -38,8 +39,16 @@ package anaPkg is
 	-- The position of the 'latency critical' bit
 	constant latencyCriticalBit : integer := 1;
 	
-	-- The size of the ring buffer used to send data from software to hardware
-	constant sw2hwRamSize : integer := 64;
+	-- The maximum packet size in the NoC (in bytes)
+	-- Don't forget to adapt this parameter also in software!
+	constant maxPacketSize :  integer := 1514; -- 1500 bytes ethernet mtu + 10 bytes header + 4 bytes packet length
+	
+	-- The number of packets (of size maxPacketSize) that fit into the ring buffer
+	-- Don't forget to adapt this parameter also in software!
+	constant numPacketsInBuffer : integer := 10;
+	
+	-- The size of the ring buffer used to send data from software to hardware (in bytes)
+	constant ringBufferSize : integer := ((maxPacketSize * numPacketsInBuffer +3)/4)*4; -- ceil to next word
 	
 	
 end anaPkg;

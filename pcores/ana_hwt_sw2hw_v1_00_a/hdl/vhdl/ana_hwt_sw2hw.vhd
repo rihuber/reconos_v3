@@ -65,7 +65,7 @@ architecture implementation of ana_hwt_sw2hw is
 						STATE_READ_DISCONTIGUOUS_2,
 						STATE_ACK);
 
-	constant C_LOCAL_RAM_SIZE_IN_BYTES : integer := sw2hwRamSize;
+	constant C_LOCAL_RAM_SIZE_IN_BYTES : integer := ringBufferSize;
 	constant C_LOCAL_RAM_SIZE_IN_WORDS : integer := C_LOCAL_RAM_SIZE_IN_BYTES/4;
 	constant C_LOCAL_RAM_ADDRESS_WIDTH : integer := toLog2Ceil(C_LOCAL_RAM_SIZE_IN_WORDS);
 

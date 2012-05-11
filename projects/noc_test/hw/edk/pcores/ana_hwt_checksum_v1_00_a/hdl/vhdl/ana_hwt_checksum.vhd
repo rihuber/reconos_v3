@@ -70,10 +70,11 @@ architecture implementation of ana_hwt_checksum is
 	signal ignore				: std_logic_vector(C_FSL_WIDTH-1 downto 0);
 	
 	signal command : std_logic_vector(C_FSL_WIDTH-1 downto 0);
-	constant SEND_NUMBER_OF_PACKETS : std_logic_vector(C_FSL_WIDTH-1 downto 0) := (0 => '1', others => '0');
+	constant SEND_NUMBER_OF_PACKETS_COMMAND : std_logic_vector(C_FSL_WIDTH-1 downto 0) := x"00000001";
 	
 	signal packetTransmitted : std_logic;
 	signal noOfPackets : unsigned(C_FSL_WIDTH-1 downto 0);
+	signal fetchedNoOfPackets : unsigned(C_FSL_WIDTH-1 downto 0);
 	
 begin
 
@@ -122,6 +123,18 @@ begin
 		FIFO32_M_Wr
 	);
 	
+	countingPackets : process(i_osif.clk, rst) is
+	begin
+		if rst = '1' then
+			noOfPackets <= (C_FSL_WIDTH-1 downto 0 => '0');
+		elsif rising_edge(i_osif.clk) then
+			if packetTransmitted = '1' then
+				noOfPackets <= noOfPackets + 1;
+			end if;
+		end if;
+	end process countingPackets;
+	
+	
 	-- os and memory synchronisation state machine
 	reconos_fsm: process (i_osif.clk,rst,o_osif,o_memif,o_ram) is
 		variable done  : boolean;
@@ -134,17 +147,15 @@ begin
 		elsif rising_edge(i_osif.clk) then
 			case state is
 				when STATE_WAIT =>
-					if packetTransmitted = '1' then
-						noOfPackets <= noOfPackets + 1;
-					end if;
 					osif_mbox_get(i_osif, o_osif, MBOX_RECV, command, done);
 					if done then
-						if command = SEND_NUMBER_OF_PACKETS then
+						if command = SEND_NUMBER_OF_PACKETS_COMMAND then
+							fetchedNoOfPackets <= noOfPackets;
 							state <= STATE_PUT;
 						end if;
 					end if;
 				when STATE_PUT =>
-					osif_mbox_put(i_osif, o_osif, MBOX_SEND, std_logic_vector(noOfPackets), ignore, done);
+					osif_mbox_put(i_osif, o_osif, MBOX_SEND, std_logic_vector(fetchedNoOfPackets), ignore, done);
 					if done then
 						state <= STATE_WAIT;
 					end if;

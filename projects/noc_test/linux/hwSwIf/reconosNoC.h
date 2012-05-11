@@ -5,6 +5,7 @@
 //#define RECONOS_NOC_VERBOSE
 
 #include <stdint.h>
+#include <math.h>
 #include "reconos.h"
 #include "mbox.h"
 
@@ -17,7 +18,7 @@ typedef struct reconosNoCPacket{
 	uint32_t srcIdp;		// src IDP of the packet
 	uint32_t dstIdp;		// dst IDP of the packet
 	uint32_t payloadLength;	// the length of the payload in bytes
-	char* payload;			// pointer to the actual payload
+	uint8_t* payload;		// pointer to the actual payload
 }reconosNoCPacket;
 
 #include "packetList.h"
@@ -28,7 +29,7 @@ typedef struct reconosNoCsw2hwInterface{
 	struct reconos_resource res[2];
 	struct mbox mb_put;
 	struct mbox mb_get;
-	char* ringBufferBaseAddr;
+	uint8_t* ringBufferBaseAddr;
 	volatile uint32_t readOffset;
 	volatile uint32_t writeOffset, hwWriteOffset;
 	volatile char writePointerDirty;
@@ -46,7 +47,7 @@ typedef struct reconosNoChw2swInterface{
 	struct reconos_resource res[2];
 	struct mbox mb_put;
 	struct mbox mb_get;
-	char* ringBufferBaseAddr;
+	uint8_t* ringBufferBaseAddr;
 	uint32_t readOffset;
 	uint32_t writeOffset;
 	pthread_t packetProcessingThread, pointerExchangeThread, threadControlThread;
@@ -65,30 +66,37 @@ typedef struct reconosNoC{
 }reconosNoC;
 
 // the number of messages that fit in the message boxes
-#define MBOX_SIZE 64
+#define MBOX_SIZE 20
 
-// the size of the ring buffer in bytes
-#define RING_BUFFER_SIZE 64
-
-// used to transmit the thread exit command with message boxes
-#define MBOX_SIGNAL_THREAD_EXIT 0xFFFFFFFF
+// the maximum size of the payload of a packet (in bytes)
+// Don't forget to adapt this parameter also in hardware!
+#define MAXIMUM_PAYLOAD_SIZE 1500
 
 // the number of bytes of the NoC header
 #define HEADER_SIZE 10
 
-#define MAXIMUM_PAYLOAD_SIZE 5
+#define MAXIMUM_PACKET_SIZE (MAXIMUM_PAYLOAD_SIZE + HEADER_SIZE + 4) // (4 bytes for the packet length field)
+
+// the number of packets of size MAXIMUM_PACKET_SIZE that fit into the ring buffer
+// Don't forget to adapt this parameter also in hardware!
+#define NUM_PACKETS_IN_BUFFER 10
+
+// the size of the ring buffer in bytes
+#define RING_BUFFER_SIZE (((MAXIMUM_PACKET_SIZE * NUM_PACKETS_IN_BUFFER + 3)/4)*4)
+
+// used to transmit the thread exit command with message boxes
+#define MBOX_SIGNAL_THREAD_EXIT 0xFFFFFFFF
 
 // if after writing a packet to the ringbuffer the amount of free space
 // in the ringbuffer is below this threshold, a write pointer exchange
 // is delegated
-#define ALMOST_FULL_TRESHOLD MAXIMUM_PAYLOAD_SIZE + HEADER_SIZE + 4 + 8
-//MAXIMUM_PAYLOAD_SIZE + HEADER_SIZE + 8
+#define ALMOST_FULL_TRESHOLD (RING_BUFFER_SIZE)/2
 
 // a write pointer exchange is delegated if no write pointer exchange
 // is yet delegated after this amount of time after a packet has been
 // written to the ringbuffer
-#define TIMEOUT_DURATION_MICROSEC 0
-#define TIMEOUT_DURATION_SEC 15
+#define TIMEOUT_DURATION_MICROSEC 100000 // 0.1 sec
+#define TIMEOUT_DURATION_SEC 0
 
 // header bitmasks
 #define GLOBAL_ADDR_MASK 15

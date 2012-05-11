@@ -40,7 +40,7 @@ void* sw2hwPacketProcessingThreadMain(void*);
 int   sw2hwPacketProcessingThreadEnoughSpaceForPacket(reconosNoCsw2hwInterface* interface, reconosNoCPacket* newPacket);
 int   sw2hwPacketProcessingThreadIsAlmostFull(reconosNoCsw2hwInterface* interface);
 int   sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface* interface, reconosNoCPacket* newPacket);
-int   sw2hwPacketProcessingThreadWriteIntegerToCharArray(char* array, uint32_t value, uint32_t startOffset, uint32_t* endOffset);
+int   sw2hwPacketProcessingThreadWriteIntegerToCharArray(uint8_t* array, uint32_t value, uint32_t startOffset, uint32_t* endOffset);
 
 // timerThread
 void* sw2hwTimerThreadMain(void*);
@@ -60,7 +60,7 @@ int createHw2SwInterface(reconosNoC* nocPtr);
 
 // pointerExchangeThread
 void* hw2swPointerExchangeThreadMain(void*);
-int hw2swPointerExchangeThreadDecodePacket(char* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket);
+int hw2swPointerExchangeThreadDecodePacket(uint8_t* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket);
 
 // packetProcessingThread
 void* hw2swPacketProcessingThreadMain(void*);
@@ -90,7 +90,7 @@ void printDebugOutputInt(char* text, int i)
 
 void printRingbufferDump(int type, void* interface)
 {
-	char* ringBuffer;
+	uint8_t* ringBuffer;
 	uint32_t readOffset, writeOffset;
 	printf("\n\n____________________\n");
 	if(type == 0)
@@ -111,10 +111,10 @@ void printRingbufferDump(int type, void* interface)
 	}
 	printf("Read Offset: %i\n", readOffset);
 	printf("Write Offset: %i\n", writeOffset);
-	int i;
-	for(i=0; i<RING_BUFFER_SIZE; i++)
-		printf("%i:\t%x\n", i, (0xFF & ringBuffer[i]));
-	printf("\n");
+//	int i;
+//	for(i=0; i<RING_BUFFER_SIZE; i++)
+//		printf("%i:\t%x\n", i, (0xFF & ringBuffer[i]));
+//	printf("\n");
 	fflush(stdout);
 }
 
@@ -399,7 +399,7 @@ void* sw2hwPacketProcessingThreadMain(void* arg)
 		errCode = sw2hwPacketProcessingThreadWritePacketToRingBuffer(interface, newPacket);
 		if(errCode)
 			pthread_exit((int*)errCode);
-		RECONOS_NOC_PRINT("SW -> HW interface (packetProcessingThread): written packet into ring buffer\n");
+		RECONOS_NOC_PRINT_INT("SW -> HW interface (packetProcessingThread): written packet into ring buffer (%i bytes)\n", newPacket->payloadLength);
 		RECONOS_NOC_PRINT_RINGBUFFER_DUMP(1, interface);
 
 		// if we need to immediately send the write pointer to the hardware thread
@@ -479,7 +479,7 @@ int sw2hwPacketProcessingThreadIsAlmostFull(reconosNoCsw2hwInterface* interface)
 
 int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface* interface, reconosNoCPacket* newPacket)
 {
-	char* ringBuffer = interface->ringBufferBaseAddr;
+	uint8_t* ringBuffer = interface->ringBufferBaseAddr;
 	uint32_t writeOffset = interface->writeOffset;
 
 	// write the packetLength
@@ -487,14 +487,14 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 	sw2hwPacketProcessingThreadWriteIntegerToCharArray(ringBuffer, packetLength, writeOffset, &writeOffset);
 
 	// write header byte 1
-	char headerByte1 = (newPacket->hwAddrGlobal & GLOBAL_ADDR_MASK) << GLOBAL_ADDR_OFFSET;
+	uint8_t headerByte1 = (newPacket->hwAddrGlobal & GLOBAL_ADDR_MASK) << GLOBAL_ADDR_OFFSET;
 	headerByte1 |= (newPacket->hwAddrLocal & LOCAL_ADDR_MASK) << LOCAL_ADDR_OFFSET;
 	headerByte1 |= (newPacket->priority & PRIORITY_MASK) << PRIORITY_OFFSET;
 	ringBuffer[writeOffset] = headerByte1;
 	writeOffset = (writeOffset + 1) % RING_BUFFER_SIZE;
 
 	// write header byte 2
-	char headerByte2 = (newPacket->direction & DIRECTION_MASK) << DIRECTION_OFFSET;
+	uint8_t headerByte2 = (newPacket->direction & DIRECTION_MASK) << DIRECTION_OFFSET;
 	headerByte2 |= (newPacket->latencyCritical & LATENCY_CRITICAL_MASK) << LATENCY_CRITICAL_OFFSET;
 	ringBuffer[writeOffset] = headerByte2;
 	writeOffset = (writeOffset + 1) % RING_BUFFER_SIZE;
@@ -527,15 +527,15 @@ int sw2hwPacketProcessingThreadWritePacketToRingBuffer(reconosNoCsw2hwInterface*
 	return 0;
 }
 
-int sw2hwPacketProcessingThreadWriteIntegerToCharArray(char* array, uint32_t value, uint32_t startOffset, uint32_t* endOffset)
+int sw2hwPacketProcessingThreadWriteIntegerToCharArray(uint8_t* array, uint32_t value, uint32_t startOffset, uint32_t* endOffset)
 {
-	array[startOffset] = (char)(value >> 24);
+	array[startOffset] = (uint8_t)(value >> 24);
 	startOffset = (startOffset + 1) % RING_BUFFER_SIZE;
-	array[startOffset] = (char)(value >> 16);
+	array[startOffset] = (uint8_t)(value >> 16);
 	startOffset = (startOffset + 1) % RING_BUFFER_SIZE;
-	array[startOffset] = (char)(value >> 8);
+	array[startOffset] = (uint8_t)(value >> 8);
 	startOffset = (startOffset + 1) % RING_BUFFER_SIZE;
-	array[startOffset] = (char)value;
+	array[startOffset] = (uint8_t)value;
 	startOffset = (startOffset + 1) % RING_BUFFER_SIZE;
 
 	*endOffset = startOffset;
@@ -754,15 +754,18 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 		uint32_t currentByte;
 		do{
 			currentByte = mbox_get(&interface->mb_get);
+//			printf("Received Byte: %x\n", currentByte);
 			bytePacket* newBytePacketElement = malloc(sizeof(bytePacket));
-			newBytePacketElement->value = (char)currentByte;
+			newBytePacketElement->value = (uint8_t)currentByte;
 			newBytePacketElement->next = tail;
 			tail = newBytePacketElement;
 			packetSize++;
+			if(packetSize > MAXIMUM_PACKET_SIZE)
+				printf("ERROR: received packet is too long (%i bytes)\n", packetSize);
 		} while((currentByte & 0x100) == 0);
 
 		// create array from list
-		char* byteArray = malloc(packetSize);
+		uint8_t* byteArray = malloc(packetSize);
 		int i;
 		for(i=packetSize-1; i>=0; i--)
 		{
@@ -792,7 +795,7 @@ void* hw2swPointerExchangeThreadMain(void* arg)
 	return 0;
 }
 
-int hw2swPointerExchangeThreadDecodePacket(char* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket)
+int hw2swPointerExchangeThreadDecodePacket(uint8_t* packetBytes, uint32_t packetLength, reconosNoCPacket** decodedPacket)
 {
 	reconosNoCPacket* newPacket = malloc(sizeof(reconosNoCPacket));
 	if(!newPacket)
@@ -863,6 +866,7 @@ void* hw2swPacketProcessingThreadMain(void* arg)
 			head = head->next;
 		}
 		pthread_mutex_unlock(&interface->packetHandlerListMutex);
+		free(currentPacket);
 	}
 
 	// never reached

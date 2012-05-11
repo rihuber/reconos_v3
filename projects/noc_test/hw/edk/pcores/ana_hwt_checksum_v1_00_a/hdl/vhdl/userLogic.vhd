@@ -55,100 +55,140 @@ architecture rtl of userLogic is
 	signal checksum_n, checksum_p : unsigned(dataWidth-1 downto 0);
 	signal writeChecksum_n, writeChecksum_p : std_logic;
 	
+	signal startOfPacket_n, startOfPacket_p : std_logic;
+	
 begin
+
+	upstreamData <= (others => '0') when startOfPacket_p = '1' else
+					downstreamData;
 	
-	packetDecoder : entity ana_v1_00_a.packetDecoder
-		port map(
-			clk 					=> clk,
-			reset 					=> reset,
-			
-			-- Signals from the switch
-			downstreamEmpty			=> downstreamEmpty,
-			downstreamData			=> downstreamData,
-			downstreamReadEnable 	=> downstreamReadEnable,
-			
-			-- Decoded values of the packet
-			startOfPacket			=> decoder_startOfPacket,	-- Indicates the start of a new packet
-			endOfPacket				=> decoder_endOfPacket,		-- Indicates the end of the packet
-			data					=> decoder_data,			-- The current data byte
-			dataValid				=> decoder_dataValid,		-- '1' if the data are valid, '0' else
-			direction				=> decoder_direction,		-- '1' for egress, '0' for ingress
-			priority				=> decoder_priority,		-- The priority of the packet
-			latencyCritical			=> decoder_latencyCritical,	-- '1' if this packet is latency critical
-			srcIdp					=> decoder_srcIdp,			-- The source IDP
-			dstIdp					=> decoder_dstIdp,			-- The destination IDP
-			readEnable				=> decoder_readEnable
-		);
-		
-	packetEncoder : entity ana_v1_00_a.packetEncoder
-	port map(
-			clk 					=> clk,
-			reset 					=> reset,
-			
-			-- Signals from the switch
-			upstreamFull			=> upstreamFull,
-			upstreamData			=> upstreamData,
-			upstreamWriteEnable 	=> upstreamWriteEnable,
-			
-			-- Decoded values of the packet
-			startOfPacket			=> encoder_startOfPacket,	-- Indicates the start of a new packet
-			endOfPacket				=> encoder_endOfPacket,		-- Indicates the end of the packet
-			data					=> encoder_data,			-- The current data byte
-			dataValid				=> encoder_dataValid,		-- '1' if the data are valid, '0' else
-			globalAddress			=> encoder_globalAddress,	-- The global hardware address of the destination
-			localAddress			=> encoder_localAddress,	-- The local hardware address of the destination
-			direction				=> encoder_direction,		-- '1' for egress, '0' for ingress
-			priority				=> encoder_priority,		-- The priority of the packet
-			latencyCritical			=> encoder_latencyCritical,	-- '1' if this packet is latency critical
-			srcIdp					=> encoder_srcIdp,			-- The source IDP
-			dstIdp					=> encoder_dstIdp,			-- The destination IDP
-			readEnable				=> encoder_readEnable
-		);
-		
+	upstreamWriteEnable <= not downstreamEmpty;
+	downstreamReadEnable <= not upstreamFull;
 	
-	decoder_readEnable <= '0' when writeChecksum_p = '1'
-						  else encoder_readEnable;
+	startOfPacket_n <= '1' when downstreamData(8) = '1' and upstreamFull = '0' else
+					   '0' when downstreamEmpty = '0' and upstreamFull = '0' else
+					   startOfPacket_p;
 	
-	writeChecksum_n <= '1' when decoder_endOfPacket = '1' and decoder_readEnable = '1'
-					   else '0' when writeChecksum_p = '1' and encoder_readEnable = '1'
-					   else writeChecksum_p; 
-					   
-	packetTransmitted <= '1' when writeChecksum_p = '1' and encoder_readEnable = '1'
-						 else '0';
-	
-	checksum_n <= checksum_p + unsigned(decoder_data) when decoder_readEnable = '1'
-				  else (others => '0') when writeChecksum_p = '1' and encoder_readEnable = '1'
-				  else checksum_p;
-				  
-	encoder_startOfPacket <= '0' when writeChecksum_p = '1'
-							 else decoder_startOfPacket;
-	
-	encoder_endOfPacket <= writeChecksum_p;
-	
-	encoder_data <= std_logic_vector(checksum_p) when writeChecksum_p = '1'
-					else decoder_data;
-				
-	encoder_dataValid <= '1' when writeChecksum_p = '1'
-				 else decoder_dataValid;
-				 
-	encoder_globalAddress <= HW_TO_SW_GATEWAY_ADDR_GLOBAL;
-	encoder_localAddress <= HW_TO_SW_GATEWAY_ADDR_LOCAL;
-	encoder_direction <= decoder_direction;
-	encoder_priority <= decoder_priority;
-	encoder_latencyCritical <= decoder_latencyCritical;
-	encoder_srcIdp <= MY_SRC_IDP;
-	encoder_dstIdp <= MY_DST_IDP;
-	
-	mem_stateTransition: process(clk, reset) is
+	mem_startOfPacket: process(reset, clk) is
 	begin
 		if reset = '1' then
-			checksum_p <= (dataWidth-1 downto 0 => '0');
-			writeChecksum_p <= '0';
+			startOfPacket_p <= '1';
 		elsif rising_edge(clk) then
-			checksum_p <= checksum_n;
-			writeChecksum_p <= writeChecksum_n;
+			startOfPacket_p <= startOfPacket_n;
 		end if;
-	end process mem_stateTransition;
+	end process mem_startOfPacket;
+	
+	
+-----------------------------------------------------------------------------------------------------------------------
+--	packetDecoder : entity ana_v1_00_a.packetDecoder
+--		port map(
+--			clk 					=> clk,
+--			reset 					=> reset,
+--			
+--			-- Signals from the switch
+--			downstreamEmpty			=> downstreamEmpty,
+--			downstreamData			=> downstreamData,
+--			downstreamReadEnable 	=> downstreamReadEnable,
+--			
+--			-- Decoded values of the packet
+--			startOfPacket			=> decoder_startOfPacket,	-- Indicates the start of a new packet
+--			endOfPacket				=> decoder_endOfPacket,		-- Indicates the end of the packet
+--			data					=> decoder_data,			-- The current data byte
+--			dataValid				=> decoder_dataValid,		-- '1' if the data are valid, '0' else
+--			direction				=> decoder_direction,		-- '1' for egress, '0' for ingress
+--			priority				=> decoder_priority,		-- The priority of the packet
+--			latencyCritical			=> decoder_latencyCritical,	-- '1' if this packet is latency critical
+--			srcIdp					=> decoder_srcIdp,			-- The source IDP
+--			dstIdp					=> decoder_dstIdp,			-- The destination IDP
+--			readEnable				=> decoder_readEnable
+--		);
+--		
+--	packetEncoder : entity ana_v1_00_a.packetEncoder
+--	port map(
+--			clk 					=> clk,
+--			reset 					=> reset,
+--			
+--			-- Signals from the switch
+--			upstreamFull			=> upstreamFull,
+--			upstreamData			=> upstreamData,
+--			upstreamWriteEnable 	=> upstreamWriteEnable,
+--			
+--			-- Decoded values of the packet
+--			startOfPacket			=> encoder_startOfPacket,	-- Indicates the start of a new packet
+--			endOfPacket				=> encoder_endOfPacket,		-- Indicates the end of the packet
+--			data					=> encoder_data,			-- The current data byte
+--			dataValid				=> encoder_dataValid,		-- '1' if the data are valid, '0' else
+--			globalAddress			=> encoder_globalAddress,	-- The global hardware address of the destination
+--			localAddress			=> encoder_localAddress,	-- The local hardware address of the destination
+--			direction				=> encoder_direction,		-- '1' for egress, '0' for ingress
+--			priority				=> encoder_priority,		-- The priority of the packet
+--			latencyCritical			=> encoder_latencyCritical,	-- '1' if this packet is latency critical
+--			srcIdp					=> encoder_srcIdp,			-- The source IDP
+--			dstIdp					=> encoder_dstIdp,			-- The destination IDP
+--			readEnable				=> encoder_readEnable
+--		);
+--		
+--	encoder_startOfPacket <= decoder_startOfPacket;
+--	encoder_endOfPacket <= decoder_endOfPacket;
+--	encoder_data <= decoder_data;
+--	encoder_dataValid <= decoder_dataValid;
+--	encoder_globalAddress <= HW_TO_SW_GATEWAY_ADDR_GLOBAL;
+--	encoder_localAddress <= HW_TO_SW_GATEWAY_ADDR_LOCAL;
+--	encoder_direction <= decoder_direction;
+--	encoder_priority <= decoder_priority;
+--	encoder_latencyCritical <= decoder_latencyCritical;
+--	encoder_srcIdp <= MY_SRC_IDP;
+--	encoder_dstIdp <= MY_DST_IDP;
+--	decoder_readEnable <= encoder_readEnable;
+--	
+--	packetTransmitted <= '1' when decoder_startOfPacket = '1' and decoder_readEnable = '1'
+--						 else '0';
+ -----------------------------------------------------------------------------------------------------------------------
+		
+
+--	decoder_readEnable <= '0' when writeChecksum_p = '1'
+--						  else encoder_readEnable;
+--	
+--	writeChecksum_n <= '1' when decoder_endOfPacket = '1' and decoder_readEnable = '1'
+--					   else '0' when writeChecksum_p = '1' and encoder_readEnable = '1'
+--					   else writeChecksum_p; 
+--					   
+--	packetTransmitted <= '1' when writeChecksum_p = '1' and encoder_readEnable = '1'
+--						 else '0';
+--	
+--	checksum_n <= checksum_p + unsigned(decoder_data) when decoder_readEnable = '1'
+--				  else (others => '0') when writeChecksum_p = '1' and encoder_readEnable = '1'
+--				  else checksum_p;
+--				  
+--	encoder_startOfPacket <= '0' when writeChecksum_p = '1'
+--							 else decoder_startOfPacket;
+--	
+--	encoder_endOfPacket <= writeChecksum_p;
+--	
+--	encoder_data <= std_logic_vector(checksum_p) when writeChecksum_p = '1'
+--					else decoder_data;
+--				
+--	encoder_dataValid <= '1' when writeChecksum_p = '1'
+--				 else decoder_dataValid;
+--				 
+--	encoder_globalAddress <= HW_TO_SW_GATEWAY_ADDR_GLOBAL;
+--	encoder_localAddress <= HW_TO_SW_GATEWAY_ADDR_LOCAL;
+--	encoder_direction <= decoder_direction;
+--	encoder_priority <= decoder_priority;
+--	encoder_latencyCritical <= decoder_latencyCritical;
+--	encoder_srcIdp <= MY_SRC_IDP;
+--	encoder_dstIdp <= MY_DST_IDP;
+--	
+--	mem_stateTransition: process(clk, reset) is
+--	begin
+--		if reset = '1' then
+--			checksum_p <= (dataWidth-1 downto 0 => '0');
+--			writeChecksum_p <= '0';
+--		elsif rising_edge(clk) then
+--			checksum_p <= checksum_n;
+--			writeChecksum_p <= writeChecksum_n;
+--		end if;
+--	end process mem_stateTransition;
 	
 	
 	
